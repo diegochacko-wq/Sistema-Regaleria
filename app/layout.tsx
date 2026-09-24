@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { NegocioProvider } from "@/context/NegocioContext"; // 👈 Importación correcta
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,17 +14,23 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "El Rincón de Renzi | Gestión",
-  description: "Sistema de gestión y punto de venta de El Rincón de Renzi.",
+  title: "Sistema de Gestión",
+  description: "POS y Control de Negocio",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html
-      lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="es">
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-neutral-950 text-neutral-100`}>
+        {/* Envolvemos toda la app con el proveedor del negocio */}
+        <NegocioProvider>
+          {children}
+        </NegocioProvider>
+      </body>
     </html>
   );
 }

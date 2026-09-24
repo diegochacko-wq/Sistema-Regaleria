@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<!-- saved from url=(1654)https://embed.lovable.app/document-preview/20260922141830_pos_core_schema.sql#https%3A%2F%2Fembed.lovable.app%2F__l5e%2Fworkspace-documents%2FINiedkhpdVN4Dogk9vvW%2Ffile_3nj2hn0ktr9feadx9841v019qn%3F__lovable_token%3DeyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ3b3Jrc3BhY2VfaWQiOiJJTmllZGtocGRWTjREb2drOXZ2VyIsImZpbGVfaWQiOiJmaWxlXzNuajJobjBrdHI5ZmVhZHg5ODQxdjAxOXFuIiwidmVyc2lvbiI6MSwiZmlsZW5hbWUiOiIyMDI2MDkyMjE0MTgzMF9wb3NfY29yZV9zY2hlbWEuc3FsIiwiY29udGVudF90eXBlIjoidGV4dC9wbGFpbiIsImNvbnRlbnRfa2V5IjoiZmEvdjEvSU5pZWRraHBkVk40RG9nazl2dlcvZmlsZV8zbmoyaG4wa3RyOWZlYWR4OTg0MXYwMTlxbi8yNDhlZWYxODgyOTgwYTFmNjhiNTJiNDU3YjNkNjIwMjQyNGMzYWE2N2MzNzk1N2U4NDNkMzBjNzEzN2VkMTZlIiwidXNlcl9pZCI6ImtzRzlmWGhXTWZYcTF4SVhJVUZXUUtvOXBKcTEiLCJwdXJwb3NlIjoid29ya3NwYWNlX2RvY3VtZW50IiwiaXNzIjoibG92YWJsZS1hcGkiLCJzdWIiOiJmaWxlXzNuajJobjBrdHI5ZmVhZHg5ODQxdjAxOXFuIiwiYXVkIjpbImxvdmFibGUtd29ya3NwYWNlLWRvY3VtZW50Il0sImV4cCI6MTc5MDA4NzM2MywibmJmIjoxNzkwMDg2NzYzLCJpYXQiOjE3OTAwODY3NjN9.lvvgFPKooZY8Ku9yUDDWQjnqLPtqY2eESXKRmR2Jz8YBfYSeOg4kFqn5LhYN5sr5nNCdUnb7MhvVvMxVXjhXUTjQUEo_M0YYsrqlMk6Li_xdlnxRHcjin0RE_LK41ra67bcBRP1uZPxNqhhR7GeO2OuegbsC4tzyZF7s0XMNf1A-CQGxmA0VkgYy3KIKQZ8G2BEnltdHN9Pde5QJSPlsEOeuFKyDqK6vn634QZMkIZATHwbWiKosxSIQ99YJCtFnjohWHXTfwSg1kY_EZVY1O6QXSfZRDo_aTr70gJmC9ORmQFvNay-pzqPuAShhLVYmGF_lr0K-uce5isZEpboLeLI4l-QhfN2WrEDnxiXBhfQLWzwZ_o4LGAcceGGSlWzRxIlTNYhh-VeyVDAEUz4gBR7aAdF9xnqySghcYimhzKKXs9o0oKYlyZNuiyr3-4fsc6Jzk-R9x2gnFproU38gygNrTkdar6nd5kgLvEmtwWGKvTZpMWAnAFzQO8v6JtiWFdWhjrxNFkg4fyIiuF6qp6Rfh7c8HsjgbYhLeaT58mbCd1gH4j262GW3VYnvmgkOAM5LlRJMsgDpkpn-8P1BkghcQXfxMwOZglBeoOtZpRzUcHBTb_79ev4GD7-aaI7jPqxHGCEsVZwfNgggzA4NPEHenskKmLY38Mf5n-4O7Wc%26v%3D1 -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Preview: 20260922141830_pos_core_schema.sql</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #18181b;
+      color: #a1a1aa;
+      min-height: 100vh;
+    }
+    #spinner {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      pointer-events: none;
+      z-index: 10;
+    }
+    #spinner .dot {
+      width: 32px;
+      height: 32px;
+      border: 3px solid #3f3f46;
+      border-top-color: #a1a1aa;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #container {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #container video { max-width: 100%; max-height: 100vh; }
+    #container audio { width: 100%; max-width: 500px; }
+    #container iframe, #container embed { width: 100%; height: 100vh; border: none; }
+    /* Direct child only: descendant matching leaks the full-viewport dark
+       style into pres nested in .md-wrapper / .nb-* wrappers. */
+    #container > pre {
+      background: #27272a;
+      color: #e4e4e7;
+      padding: 1.5rem;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      width: 100%;
+      height: 100vh;
+      overflow: auto;
+    }
+    #container > pre.code-preview {
+      color: #c9d1d9;
+      font-family: "Roboto Mono", Menlo, Monaco, Consolas, monospace;
+    }
+    /* highlight.js theme — matches Lovable code editor (PrismCodeTheme.ts) */
+    .hljs-comment, .hljs-quote { color: #8b949e; }
+    .hljs-string, .hljs-attr { color: #a5d6ff; }
+    .hljs-number, .hljs-literal { color: #79c0ff; }
+    .hljs-built_in, .hljs-type { color: #ffa657; }
+    .hljs-keyword, .hljs-selector-tag { color: oklch(0.833 0.145 321.434); }
+    .hljs-function, .hljs-title { color: #d2a8ff; }
+    .hljs-variable, .hljs-template-variable { color: #c9d1d9; }
+    .hljs-name, .hljs-tag { color: #7ee787; }
+    .hljs-attribute { color: #79c0ff; }
+    .hljs-regexp, .hljs-link { color: #a5d6ff; }
+    .hljs-symbol, .hljs-bullet { color: #ffa657; }
+    .hljs-deletion { color: #ff7b72; }
+    .hljs-addition { color: #7ee787; }
+    .doc-wrapper {
+      background: #52525b;
+      width: 100%;
+      height: 100vh;
+      overflow: auto;
+      /* Without a reserved gutter the fit oscillates: zoom hides the scrollbar, the wider pane re-zooms, it returns. */
+      scrollbar-gutter: stable;
+    }
+    /* docx-preview emits .docx-content-wrapper around the .docx-content sections. */
+    .doc-wrapper .docx-content-wrapper {
+      background: transparent;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .doc-wrapper .docx-content-wrapper > section.docx-content {
+      flex-shrink: 0;
+      margin: 0;
+    }
+    .sheet-wrapper {
+      background: #fff;
+      width: 100%;
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .sheet-wrapper table {
+      border-collapse: separate;
+      border-spacing: 0;
+      width: max-content;
+      min-width: 100%;
+      table-layout: fixed;
+      font-size: 13px;
+      line-height: 1.4;
+      color: #37352f;
+    }
+    /* The renderer promotes the first row to <th> elements. */
+    .sheet-wrapper th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #f7f6f3;
+      font-weight: 500;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #9b9a97;
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid #e9e9e7;
+      border-right: 1px solid #e9e9e7;
+    }
+    .sheet-wrapper td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid #ededec;
+      border-right: 1px solid #ededec;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sheet-wrapper td:empty {
+      background: #fafaf8;
+    }
+    .sheet-wrapper tr:nth-child(even) td {
+      background: #fafaf8;
+    }
+    .sheet-wrapper tr:hover td {
+      background: #f7f6f3;
+    }
+    .sheet-tabs {
+      display: flex;
+      gap: 0;
+      background: #f7f6f3;
+      border-top: 1px solid #e9e9e7;
+      padding: 0;
+      overflow-x: auto;
+      flex-shrink: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      scrollbar-width: none;
+    }
+    .sheet-tabs::-webkit-scrollbar {
+      display: none;
+    }
+    .sheet-tab {
+      padding: 8px 16px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 400;
+      color: #9b9a97;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .sheet-tab:hover {
+      color: #37352f;
+      background: #efedea;
+    }
+    .sheet-tab-active {
+      color: #37352f;
+      font-weight: 500;
+      border-bottom-color: #37352f;
+    }
+    .pptx-wrapper {
+      width: 100%;
+      height: 100vh;
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      background: #52525b;
+    }
+    .pptx-slide {
+      flex-shrink: 0;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      max-width: 100%;
+    }
+    .md-wrapper {
+      background: #fff;
+      color: #1f2328;
+      width: 100%;
+      height: 100vh;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overflow-wrap: break-word;
+      padding: 32px 48px;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+    .md-wrapper h1, .md-wrapper h2, .md-wrapper h3,
+    .md-wrapper h4, .md-wrapper h5, .md-wrapper h6 {
+      margin-top: 24px;
+      margin-bottom: 16px;
+      font-weight: 600;
+      line-height: 1.25;
+      color: #1f2328;
+    }
+    .md-wrapper h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid #d1d9e0; }
+    .md-wrapper h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid #d1d9e0; }
+    .md-wrapper h3 { font-size: 1.25em; }
+    .md-wrapper p { margin-bottom: 16px; }
+    .md-wrapper a { color: #0969da; text-decoration: none; }
+    .md-wrapper a:hover { text-decoration: underline; }
+    .md-wrapper code {
+      background: #eff1f3;
+      padding: 0.2em 0.4em;
+      border-radius: 6px;
+      font-size: 85%;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    }
+    .md-wrapper pre {
+      background: #f6f8fa;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin-bottom: 16px;
+    }
+    .md-wrapper pre code {
+      background: none;
+      padding: 0;
+      font-size: 85%;
+      line-height: 1.45;
+    }
+    .md-wrapper ul, .md-wrapper ol {
+      padding-left: 2em;
+      margin-bottom: 16px;
+    }
+    .md-wrapper li + li { margin-top: 4px; }
+    .md-wrapper blockquote {
+      padding: 0 1em;
+      color: #656d76;
+      border-left: 0.25em solid #d1d9e0;
+      margin-bottom: 16px;
+    }
+    /* .table-scroll is inserted by the markdown renderer around each table. */
+    .md-wrapper .table-scroll {
+      overflow-x: auto;
+      max-width: 100%;
+      margin-bottom: 16px;
+    }
+    .md-wrapper table {
+      border-collapse: collapse;
+      width: max-content;
+      min-width: 100%;
+    }
+    .md-wrapper th, .md-wrapper td {
+      border: 1px solid #d1d9e0;
+      padding: 6px 13px;
+    }
+    .md-wrapper th { font-weight: 600; background: #f6f8fa; }
+    .md-wrapper img { max-width: 100%; }
+    .md-wrapper hr { height: 0.25em; background: #d1d9e0; border: 0; margin: 24px 0; }
+    .mermaid-wrapper {
+      background: #fff;
+      width: 100%;
+      height: 100vh;
+      overflow: auto;
+      padding: 32px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+    }
+    .mermaid-wrapper svg {
+      max-width: 100%;
+      height: auto;
+    }
+    .pdf-wrapper {
+      width: 100%;
+      height: 100vh;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      background: #52525b;
+    }
+    .pdf-wrapper canvas {
+      display: block;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .nb-wrapper {
+      background: #fff;
+      color: #1f2328;
+      width: 100%;
+      height: 100vh;
+      overflow: auto;
+      padding: 24px max(32px, calc((100% - 900px) / 2));
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .nb-cell {
+      margin-bottom: 2px;
+      border-left: 3px solid transparent;
+      transition: border-color 0.15s;
+    }
+    .nb-cell:hover { border-left-color: #0969da; }
+    .nb-md {
+      padding: 12px 16px;
+    }
+    .nb-md h1, .nb-md h2, .nb-md h3, .nb-md h4, .nb-md h5, .nb-md h6 {
+      margin-top: 20px; margin-bottom: 10px; font-weight: 600; line-height: 1.25; color: #1f2328;
+    }
+    .nb-md h1 { font-size: 1.8em; border-bottom: 2px solid #d1d9e0; padding-bottom: 0.3em; }
+    .nb-md h2 { font-size: 1.4em; border-bottom: 1px solid #d1d9e0; padding-bottom: 0.3em; }
+    .nb-md h3 { font-size: 1.2em; }
+    .nb-md p { margin-bottom: 12px; }
+    .nb-md a { color: #0969da; text-decoration: none; }
+    .nb-md a:hover { text-decoration: underline; }
+    .nb-md code {
+      background: #eff1f3; padding: 0.2em 0.4em; border-radius: 4px; font-size: 85%;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    }
+    #container .nb-md pre {
+      background: #f6f8fa; padding: 12px 16px; border-radius: 6px;
+      overflow-x: auto; margin-bottom: 12px; border: 1px solid #e8ebef;
+      color: #1f2328; height: auto; width: auto;
+    }
+    .nb-md pre code { background: none; padding: 0; }
+    .nb-md ul, .nb-md ol { padding-left: 2em; margin-bottom: 12px; }
+    .nb-md li + li { margin-top: 4px; }
+    .nb-md img { max-width: 100%; border-radius: 4px; }
+    .nb-md table { border-collapse: collapse; margin-bottom: 12px; width: 100%; }
+    .nb-md th, .nb-md td { border: 1px solid #d1d9e0; padding: 6px 13px; }
+    .nb-md th { font-weight: 600; background: #f6f8fa; }
+    .nb-md blockquote {
+      padding: 0 1em; color: #656d76; border-left: 0.25em solid #d1d9e0; margin-bottom: 12px;
+    }
+    .nb-input-row { display: flex; gap: 0; align-items: stretch; }
+    .nb-prompt {
+      min-width: 58px; text-align: right; padding-right: 8px;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12px; color: #57606a; padding-top: 10px; flex-shrink: 0;
+      user-select: none;
+    }
+    #container .nb-code {
+      flex: 1; min-width: 0;
+      background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 4px;
+      padding: 10px 14px; margin: 0;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 13px; line-height: 1.5; white-space: pre; word-break: normal;
+      color: #1f2328; overflow-x: auto; tab-size: 4;
+      height: auto;
+    }
+    .nb-code code { font-family: inherit; }
+    /* Light highlight.js theme for notebook code cells (GitHub-like) */
+    .nb-code .hljs-comment, .nb-code .hljs-quote { color: #6a737d; }
+    .nb-code .hljs-string, .nb-code .hljs-attr { color: #032f62; }
+    .nb-code .hljs-number, .nb-code .hljs-literal { color: #005cc5; }
+    .nb-code .hljs-built_in, .nb-code .hljs-type { color: #e36209; }
+    .nb-code .hljs-keyword, .nb-code .hljs-selector-tag { color: #d73a49; }
+    .nb-code .hljs-function, .nb-code .hljs-title { color: #6f42c1; }
+    .nb-code .hljs-variable, .nb-code .hljs-template-variable { color: #1f2328; }
+    .nb-code .hljs-name, .nb-code .hljs-tag { color: #22863a; }
+    .nb-code .hljs-attribute { color: #005cc5; }
+    .nb-code .hljs-regexp, .nb-code .hljs-link { color: #032f62; }
+    .nb-code .hljs-symbol, .nb-code .hljs-bullet { color: #e36209; }
+    .nb-code .hljs-deletion { color: #b31d28; }
+    .nb-code .hljs-addition { color: #22863a; }
+    .nb-code .hljs-meta { color: #6a737d; }
+    /* KaTeX overrides for notebook markdown cells */
+    .nb-md .katex-display { margin: 0.5em 0; overflow-x: auto; }
+    .nb-output {
+      margin-left: 58px; margin-top: 0; padding: 10px 14px;
+      border: 1px solid #e8ebef; border-top: none; border-radius: 0 0 4px 4px;
+      background: #fff;
+      font-size: 13px; line-height: 1.5;
+    }
+    #container .nb-output pre {
+      margin: 0; white-space: pre-wrap; word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 13px; color: #1f2328;
+      background: transparent; padding: 0;
+      height: auto; width: auto;
+    }
+    .nb-output img { max-width: 100%; display: block; margin: 4px 0; }
+    .nb-error { background: #fff5f5; border-color: #fecaca; }
+    #container .nb-error pre { color: #b91c1c; }
+    #container .nb-stream pre { color: #1f2328; }
+    .nb-html-output { overflow-x: auto; }
+    .nb-html-output table { border-collapse: collapse; font-size: 13px; }
+    .nb-html-output th, .nb-html-output td { border: 1px solid #d1d9e0; padding: 4px 10px; text-align: left; }
+    .nb-html-output th { background: #f6f8fa; font-weight: 600; }
+    .nb-html-output tr:nth-child(even) { background: #fafafa; }
+    #container .nb-raw {
+      background: #f6f8fa; border: 1px solid #d1d9e0; border-radius: 4px;
+      padding: 10px 14px; margin-left: 58px;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 13px; white-space: pre-wrap; color: #1f2328;
+      height: auto; width: auto;
+    }
+    .img-wrapper {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .img-stage {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      width: 100%;
+      background-image:
+        linear-gradient(45deg, #27272a 25%, transparent 25%),
+        linear-gradient(-45deg, #27272a 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #27272a 75%),
+        linear-gradient(-45deg, transparent 75%, #27272a 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+      background-color: #3f3f46;
+    }
+    .img-stage img, .img-stage canvas {
+      max-width: 100%;
+      max-height: calc(100vh - 60px);
+      object-fit: contain;
+    }
+    .img-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: #27272a;
+      width: 100%;
+      flex-shrink: 0;
+    }
+    .img-btn {
+      padding: 4px 12px;
+      border: 1px solid #52525b;
+      border-radius: 6px;
+      background: #3f3f46;
+      color: #e4e4e7;
+      cursor: pointer;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .img-btn:hover { background: #52525b; }
+    .img-btn-active {
+      background: #52525b;
+      border-color: #71717a;
+    }
+    .img-info {
+      margin-left: auto;
+      color: #a1a1aa;
+      font-size: 12px;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    }
+    #error {
+      color: #ef4444;
+      display: none;
+      text-align: center;
+      padding: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="spinner" style="display: none;"><div class="dot"></div><span>Loading preview…</span></div>
+  <div id="container" data-preview-ready="true"><p style="text-align: center; padding: 2rem; color: rgb(161, 161, 170);">Preview is not available for this file type.</p></div>
+  <div id="error"></div>
+  <script>
+  (function() {
+    var filename = "20260922141830_pos_core_schema.sql";
+    var container = document.getElementById("container");
+    var spinner = document.getElementById("spinner");
+    var errorEl = document.getElementById("error");
+
+    function markReady(el, attr, signal) {
+      window.requestAnimationFrame(function() {
+        window.requestAnimationFrame(function() {
+          el.setAttribute(attr, "true");
+          if (signal) notifyEmbedder(signal);
+        });
+      });
+    }
+
+    // Consumer: web/modules/files/DocumentPreviewThumbnail.tsx — keep in sync.
+    function notifyEmbedder(type) {
+      if (window.parent === window) return;
+      window.parent.postMessage({ type: type, filename: filename }, "*");
+    }
+
+    // Lets the embedder wait for a real paint instead of a blind timer: heavy
+    // renderers resolve long after this frame's load event.
+    notifyEmbedder("lovable:document-preview-boot");
+
+    function show() {
+      spinner.style.display = "none";
+      markReady(container, "data-preview-ready", "lovable:document-preview-ready");
+    }
+
+    function showError(msg) {
+      spinner.style.display = "none";
+      errorEl.textContent = msg;
+      errorEl.style.display = "block";
+      markReady(errorEl, "data-preview-error", "lovable:document-preview-error");
+    }
+
+    
+
+    function isRenderedFrame(source) {
+      var frames = container.getElementsByTagName("iframe");
+      for (var i = 0; i < frames.length; i++) {
+        if (frames[i].contentWindow === source) return true;
+      }
+      return false;
+    }
+
+    function httpHref(value) {
+      if (typeof value !== "string") return null;
+      try {
+        var url = new URL(value);
+        return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // A click in the rendered frame also activates this window, so real clicks pass the gate
+    // and the relayed open lands inside the activation window. Consumer: web/modules/files/documentPreviewSrc.ts.
+    window.addEventListener("message", function(event) {
+      if (!event.data || event.data.type !== "lovable:document-preview-open-link") return;
+      if (!isRenderedFrame(event.source)) return;
+      if (navigator.userActivation && !navigator.userActivation.isActive) return;
+      var href = httpHref(event.data.href);
+      if (!href) return;
+      if (window.parent === window) {
+        window.open(href, "_blank", "noopener,noreferrer");
+      } else {
+        window.parent.postMessage({ type: "lovable:document-preview-open-link", filename: filename, href: href }, "*");
+      }
+    });
+
+
+
+
+    function loadScript(src) {
+      return new Promise(function(resolve, reject) {
+        var s = document.createElement("script");
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = function() { reject(new Error("Failed to load: " + src)); };
+        document.head.appendChild(s);
+      });
+    }
+
+    function loadCSS(href) {
+      var link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = href;
+      document.head.appendChild(link);
+    }
+
+    // Height + filename only, targetOrigin "*" (embedder origin unknowable). Consumer:
+    // web/modules/files/view/canvas/ArtifactNode.tsx EmbedContent — keep the shape in
+    // sync. Opt-in via query param so plain previews behave exactly as before.
+    if (window.parent !== window && typeof ResizeObserver !== "undefined" &&
+        location.search.indexOf("lovableSizeReport=1") !== -1) {
+      var lastReportedHeight = 0;
+      var reportSize = function() {
+        // Renderer wrappers are fixed at 100vh with overflow:auto, so content
+        // extent lives in their scrollHeight; documentElement would floor the
+        // measurement at the viewport and make nodes grow-only.
+        var height = 0;
+        if (container) {
+          for (var i = 0; i < container.children.length; i++) {
+            height = Math.max(height, container.children[i].scrollHeight);
+          }
+        }
+        if (height === 0) height = document.documentElement.scrollHeight;
+        height = Math.ceil(height);
+        if (Math.abs(height - lastReportedHeight) < 2) return;
+        lastReportedHeight = height;
+        window.parent.postMessage(
+          { type: "lovable:document-preview-size", filename: filename, height: height },
+          "*"
+        );
+      };
+      var scheduleReport = function() { window.requestAnimationFrame(reportSize); };
+      var observer = new ResizeObserver(scheduleReport);
+      observer.observe(document.documentElement);
+      if (container) {
+        observer.observe(container);
+        // Renderers inject content asynchronously without resizing the fixed
+        // wrappers; mutations and subresource loads are the growth signals.
+        new MutationObserver(scheduleReport).observe(container, { childList: true, subtree: true });
+      }
+      window.addEventListener("load", scheduleReport, true);
+      // The embedder asks for a re-report when its listener attaches after our
+      // first report; reset the dedup so the resend isn't suppressed.
+      window.addEventListener("message", function(event) {
+        if (event.source !== window.parent) return;
+        if (!event.data || event.data.type !== "lovable:request-preview-size") return;
+        lastReportedHeight = 0;
+        scheduleReport();
+      });
+    }
+
+    try {
+      
+    var proxyWorkerHost = "lovable.app";
+    var allowedPathRules = [{"prefix":"\u002f__l5e\u002fdocuments\u002f","sameHostOnly":false},{"prefix":"\u002f__l5e\u002fworkspace-documents\u002f","sameHostOnly":true}];
+    var assetUrl = decodeURIComponent(window.location.hash.slice(1));
+    var parsedAssetUrl = new URL(assetUrl);
+    var hasAllowedProtocol = parsedAssetUrl.protocol === "https:" || (proxyWorkerHost === "localhost" && parsedAssetUrl.protocol === "http:");
+    var matchedRule = null;
+    for (var i = 0; i < allowedPathRules.length; i++) {
+      if (parsedAssetUrl.pathname.startsWith(allowedPathRules[i].prefix)) { matchedRule = allowedPathRules[i]; break; }
+    }
+    var hasAllowedHost = matchedRule && (matchedRule.sameHostOnly
+      ? parsedAssetUrl.hostname === window.location.hostname
+      : parsedAssetUrl.hostname === proxyWorkerHost || parsedAssetUrl.hostname.endsWith("." + proxyWorkerHost));
+    if (!hasAllowedProtocol || !hasAllowedHost) {
+      throw new Error("Invalid document URL");
+    }
+    assetUrl = parsedAssetUrl.toString();
+      
+    show();
+    const msg = document.createElement("p");
+    msg.style.cssText = "text-align:center;padding:2rem;color:#a1a1aa;";
+    msg.textContent = "Preview is not available for this file type.";
+    container.appendChild(msg);
+    } catch (e) {
+      showError("An unexpected error occurred.");
+    }
+  })();
+  </script>
+
+</body></html>
