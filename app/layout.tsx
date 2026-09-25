@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { NegocioProvider } from "@/context/NegocioContext"; // 👈 Importación correcta
+import { NegocioProvider } from "@/context/NegocioContext";
+import ProveedorNotificaciones from "@/components/Notificaciones";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,9 +27,11 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-neutral-950 text-neutral-100`}>
-        {/* Envolvemos toda la app con el proveedor del negocio */}
+        {/* Envolvemos toda la app con el proveedor del negocio y el de notificaciones */}
         <NegocioProvider>
-          {children}
+          <ProveedorNotificaciones>
+            {children}
+          </ProveedorNotificaciones>
         </NegocioProvider>
       </body>
     </html>

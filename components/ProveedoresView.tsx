@@ -26,8 +26,8 @@ export default function ProveedoresView() {
     try {
       const { data, error } = await supabase
         .from('products')
-        .select('id, name, stock, min_stock, supplier, sale_price, cost_price, active')
-        .eq('business_id', negocioActual.id)
+        .select('id, name, stock, min_stock, supplier, sale_price, cost_price, active, business_id, negocio_id')
+        .or(`business_id.eq.${negocioActual.id},negocio_id.eq.${negocioActual.id}`)
         .order('name')
 
       if (error) throw error
@@ -35,7 +35,7 @@ export default function ProveedoresView() {
       const adaptados = (data || []).map((p: any) => ({
         ...p,
         nombre: p.name,
-        proveedor: p.supplier || 'General'
+        proveedor: p.supplier ? p.supplier.trim() : 'General'
       }))
       setProductos(adaptados)
     } catch (err: any) {
@@ -47,7 +47,7 @@ export default function ProveedoresView() {
 
   // Agrupación y acumulados por proveedor (Costo y Venta)
   const proveedoresResumen = productos.reduce((acc: any, p: any) => {
-    const prov = p.proveedor || p.supplier || 'General'
+    const prov = p.proveedor || p.supplier ? (p.proveedor || p.supplier).trim() : 'General'
     if (!acc[prov]) {
       acc[prov] = {
         proveedor: prov,

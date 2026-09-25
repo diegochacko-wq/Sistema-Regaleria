@@ -13,6 +13,8 @@ import ProveedoresView from '@/components/ProveedoresView'
 import DashboardView from '@/components/DashboardView'
 import ArqueoView from '@/components/ArqueoView'
 import PosView from '@/components/PosView'
+import AdminUsuariosView from '@/components/AdminUsuariosView'
+import { useNotificaciones } from '@/components/Notificaciones'
 
 // ============= MÓDULO DE REPOSICIÓN / PEDIDOS (integrado) =============
 function ModuloReposicion() {
@@ -161,8 +163,8 @@ function ModuloReposicion() {
         <button onClick={cargarProductosRepo} className="bg-white/5 hover:bg-white/10 text-neutral-300 px-4 py-3 rounded-xl font-bold text-sm">🔄 Actualizar</button>
       </div>
 
-      <div className="bg-neutral-900/50 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-neutral-900/50 backdrop-blur-md rounded-2xl border border-white/10 overflow-x-auto">
+        <table className="w-full text-sm min-w-[500px]">
           <thead className="bg-white/5 text-neutral-400">
             <tr>
               <th className="p-3 text-left">Producto</th>
@@ -239,6 +241,7 @@ function ModuloReposicion() {
 
 export default function POS() {
   const { negocioActual, loading: cargandoNegocio } = useNegocio()
+  const { notificar } = useNotificaciones()
 
   const [montado, setMontado] = useState(false)
   const [productos, setProductos] = useState<any[]>([])
@@ -247,23 +250,25 @@ export default function POS() {
   const [carrito, setCarrito] = useState<any[]>([])
   const [procesandoVenta, setProcesandoVenta] = useState(false)
 
+  // Estados de Usuario / Admin
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [cargandoUsuario, setCargandoUsuario] = useState(true)
+
   // Estados de Caja y Turnos
   const [turnoAbierto, setTurnoAbierto] = useState<any>(null)
   const [montoInicialInput, setMontoInicialInput] = useState('')
   const [cargandoTurno, setCargandoTurno] = useState(true)
+  
   const [vistaActual, setVistaActual] = useState<
-    'pos' | 'inventario' | 'proveedores' | 'gastos' | 'arqueo' | 'dashboard' | 'deudas' | 'senas' | 'reposicion' | 'cajaPos'
+    'pos' | 'inventario' | 'proveedores' | 'gastos' | 'arqueo' | 'dashboard' | 'deudas' | 'senas' | 'reposicion' | 'cajaPos' | 'admin'
   >('pos')
+
+  // Estado para menú "Más" en celular
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false)
 
   // Datos para Dashboard y Gastos
   const [ventasHistoricas, setVentasHistoricas] = useState<any[]>([])
   const [gastosHistoricos, setGastosHistoricos] = useState<any[]>([])
-  const [montoGasto, setMontoGasto] = useState('')
-  const [descripcionGasto, setDescripcionGasto] = useState('')
-  const [categoriaGasto, setCategoriaGasto] = useState('General')
-
-  // Arqueo de caja
-  const [montoContado, setMontoContado] = useState('')
 
   // Estados para nuevo producto / carga
   const [nombreProd, setNombreProd] = useState('')
@@ -284,30 +289,52 @@ export default function POS() {
   const [categoriasDB, setCategoriasDB] = useState<any[]>([])
   const [categoriaNuevaInput, setCategoriaNuevaInput] = useState('')
 
-  // Estados para Modal de Múltiples Pagos
-  const [mostrarModalPago, setMostrarModalPago] = useState(false)
-  const [pagosTemp, setPagosTemp] = useState<{ method: string; amount: number }[]>([])
-  const [metodoPagoActual, setMetodoPagoActual] = useState('efectivo')
-  const [montoPagoActual, setMontoPagoActual] = useState('')
-  const [efectivoRecibido, setEfectivoRecibido] = useState('')
-
   // Estados para Ticket / Impresión
   const [ticketVenta, setTicketVenta] = useState<any | null>(null)
   const barcodeTicketRef = useRef<SVGSVGElement | null>(null)
 
-  // Estados para Etiquetas (impresión de precio + código de barras)
+  // Estados para Etiquetas
   const [etiquetaProducto, setEtiquetaProducto] = useState<any | null>(null)
   const [cantidadEtiquetas, setCantidadEtiquetas] = useState('1')
   const etiquetasContenedorRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => {
-    setMontado(true)
-  }, [])
-
-  // Referencias para escaneo por cámara
+  // Estados para el Escáner por Cámara
+  const [escaneandoCamara, setEscaneandoCamara] = useState(false)
+  const [destinoEscaneo, setDestinoEscaneo] = useState<'pos' | 'inventario'>('pos')
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const [escaneando, setEscaneando] = useState(false)
+  const streamRef = useRef<MediaStream | null>(null)
+
+  useEffect(() => {
+    setMontado(true)
+    obtenerUsuarioActual()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user?.email) {
+        setUserEmail(session.user.email.trim().toLowerCase())
+      } else {
+        setUserEmail(null)
+      }
+      setCargandoUsuario(false)
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  const obtenerUsuarioActual = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user?.email) {
+        setUserEmail(user.email.trim().toLowerCase())
+      }
+    } catch (err) {
+      console.error('Error al obtener usuario actual:', err)
+    } finally {
+      setCargandoUsuario(false)
+    }
+  }
 
   useEffect(() => {
     if (negocioActual?.id) {
@@ -329,6 +356,76 @@ export default function POS() {
     }
   }, [vistaActual, turnoAbierto, negocioActual?.id])
 
+  // Manejo de la Cámara / Escáner
+  useEffect(() => {
+    if (escaneandoCamara) {
+      iniciarCamara()
+    } else {
+      detenerCamara()
+    }
+    return () => {
+      detenerCamara()
+    }
+  }, [escaneandoCamara])
+
+  const iniciarCamara = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      })
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.setAttribute('playsinline', 'true')
+        videoRef.current.play()
+        requestAnimationFrame(escanearFrame)
+      }
+    } catch (err) {
+      console.error('Error al acceder a la cámara:', err)
+      notificar('error', 'No se pudo acceder a la cámara. Verificá los permisos.', 'Cámara')
+      setEscaneandoCamara(false)
+    }
+  }
+
+  const detenerCamara = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+  }
+
+  const escanearFrame = () => {
+    if (!escaneandoCamara) return
+    const video = videoRef.current
+    const canvas = canvasRef.current
+
+    if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+      if (canvas) {
+        canvas.height = video.videoHeight
+        canvas.width = video.videoWidth
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'dontInvert',
+          })
+          if (code) {
+            const codigoDetectado = code.data
+            if (destinoEscaneo === 'inventario') {
+              setCodigoProd(codigoDetectado)
+            } else {
+              setBusqueda(codigoDetectado)
+            }
+            setEscaneandoCamara(false)
+            return
+          }
+        }
+      }
+    }
+    requestAnimationFrame(escanearFrame)
+  }
+
   // Generar código de barras en el ticket
   useEffect(() => {
     if (ticketVenta && barcodeTicketRef.current) {
@@ -347,7 +444,6 @@ export default function POS() {
     }
   }, [ticketVenta])
 
-  // Cargar categorías existentes
   const cargarCategorias = async () => {
     if (!negocioActual?.id) return
     try {
@@ -363,7 +459,6 @@ export default function POS() {
     }
   }
 
-  // Cargar productos del negocio actual
   const cargarProductos = async () => {
     if (!negocioActual?.id) return
     try {
@@ -421,7 +516,6 @@ export default function POS() {
     }
   }
 
-  // Cargar gastos
   const cargarGastos = async () => {
     if (!negocioActual?.id) return
     try {
@@ -438,7 +532,6 @@ export default function POS() {
     }
   }
 
-  // Cargar ventas para dashboard
   const cargarVentasDashboard = async () => {
     if (!negocioActual?.id) return
     try {
@@ -475,15 +568,14 @@ export default function POS() {
     }
   }
 
-  // Abrir Turno de Caja
   const abrirTurno = async () => {
     if (!negocioActual?.id) {
-      alert('Debes seleccionar un negocio primero')
+      notificar('error', 'Debes seleccionar un negocio primero', 'Caja')
       return
     }
     const monto = parseFloat(montoInicialInput)
     if (isNaN(monto) || monto < 0) {
-      alert('Por favor ingresa un monto inicial válido.')
+      notificar('error', 'Por favor ingresa un monto inicial válido.', 'Caja')
       return
     }
 
@@ -514,11 +606,11 @@ export default function POS() {
 
       if (error) throw error
 
-      alert('Caja abierta con éxito!')
+      notificar('exito', 'Caja abierta con éxito!', 'Caja')
       setMontoInicialInput('')
       await verificarTurnoAbierto()
     } catch (err: any) {
-      alert(`Error al abrir caja: ${err.message || 'Error desconocido'}`)
+      notificar('error', `Error al abrir caja: ${err.message || 'Error desconocido'}`, 'Caja')
     }
   }
 
@@ -563,7 +655,7 @@ export default function POS() {
     const minStock = parseInt(minStockProd, 10) || 0
 
     if (!nombre || isNaN(precio) || precio < 0) {
-      alert('El producto debe tener al menos un nombre y un precio de venta válido.')
+      notificar('error', 'El producto debe tener al menos un nombre y un precio de venta válido.', 'Inventario')
       return
     }
 
@@ -591,17 +683,17 @@ export default function POS() {
           .eq('negocio_id', negocioActual.id)
 
         if (error) throw error
-        alert(`Producto "${nombre}" actualizado con éxito!`)
+        notificar('exito', `Producto "${nombre}" actualizado con éxito!`, 'Inventario')
       } else {
         const { error } = await supabase.from('products').insert(payload)
         if (error) throw error
-        alert(`Producto "${nombre}" creado con éxito!`)
+        notificar('exito', `Producto "${nombre}" creado con éxito!`, 'Inventario')
       }
 
       limpiarFormularioProducto()
       await cargarProductos()
     } catch (err: any) {
-      alert(`Error al guardar producto: ${err.message}`)
+      notificar('error', err.message || 'Error al guardar producto', 'Error')
     } finally {
       setGuardandoProducto(false)
     }
@@ -619,12 +711,24 @@ export default function POS() {
         .select('*')
         .single()
 
-      if (error) throw error
+      if (error) {
+        if (error.code === '23505') {
+          const catExistente = categoriasDB.find(c => c.name.toLowerCase() === nombre.toLowerCase())
+          if (catExistente) {
+            setCategoriaProd(catExistente.id)
+            setCategoriaNuevaInput('')
+            notificar('exito', `La categoría "${nombre}" ya existía y fue seleccionada automáticamente.`, 'Categorías')
+            return
+          }
+        }
+        throw error
+      }
+
       setCategoriaNuevaInput('')
       await cargarCategorias()
       if (data?.id) setCategoriaProd(data.id)
     } catch (err: any) {
-      alert(`Error creando categoría: ${err.message}`)
+      notificar('error', `Error creando categoría: ${err.message}`, 'Error')
     }
   }
 
@@ -645,220 +749,10 @@ export default function POS() {
         prev.map(p => (p.id === id ? { ...p, [campo === 'price' ? 'precio' : 'stock']: valor } : p))
       )
     } catch (err: any) {
-      alert(`Error al actualizar: ${err.message}`)
+      notificar('error', `Error al actualizar: ${err.message}`, 'Error')
       cargarProductos()
     }
   }
-
-  const agregarAlCarrito = (producto: any) => {
-    if (producto.stock <= 0) {
-      alert('Producto sin stock disponible.')
-      return
-    }
-
-    const existe = carrito.find((item) => item.id === producto.id)
-    if (existe) {
-      if (existe.cantidad >= producto.stock) {
-        alert('No hay más stock disponible de este producto.')
-        return
-      }
-      setCarrito(
-        carrito.map((item) =>
-          item.id === producto.id ? { ...item, cantidad: item.cantidad + 1 } : item
-        )
-      )
-    } else {
-      setCarrito([...carrito, { ...producto, cantidad: 1 }])
-    }
-  }
-
-  const cambiarCantidad = (id: string, delta: number) => {
-    const item = carrito.find((i) => i.id === id)
-    if (!item) return
-
-    const prodOriginal = productos.find((p) => p.id === id)
-    const nuevoTotal = item.cantidad + delta
-
-    if (nuevoTotal > (prodOriginal?.stock || 0)) {
-      alert('Supera el stock disponible.')
-      return
-    }
-
-    if (nuevoTotal <= 0) {
-      setCarrito(carrito.filter((i) => i.id !== id))
-    } else {
-      setCarrito(
-        carrito.map((i) => (i.id === id ? { ...i, cantidad: nuevoTotal } : i))
-      )
-    }
-  }
-
-  const totalCarrito = carrito.reduce((acc, item) => acc + item.precio * item.cantidad, 0)
-
-  const abrirModalCobro = () => {
-    setEfectivoRecibido('')
-    if (!turnoAbierto) {
-      alert('No puedes cobrar si la caja está cerrada. Abre un turno primero.')
-      return
-    }
-    if (carrito.length === 0) return
-
-    setPagosTemp([{ method: 'efectivo', amount: totalCarrito }])
-    setMetodoPagoActual('efectivo')
-    setMontoPagoActual('')
-    setMostrarModalPago(true)
-  }
-
-  const cambiarMetodoPagoSelect = (nuevoMetodo: string) => {
-    setMetodoPagoActual(nuevoMetodo)
-    setPagosTemp(prev => {
-      if (prev.length === 1) {
-        return [{ ...prev[0], method: nuevoMetodo }]
-      }
-      return prev
-    })
-  }
-
-  const agregarPago = () => {
-    const monto = parseFloat(montoPagoActual)
-    if (isNaN(monto) || monto <= 0) return
-    setPagosTemp([...pagosTemp, { method: metodoPagoActual, amount: monto }])
-    setMontoPagoActual('')
-  }
-
-  const eliminarPago = (index: number) => {
-    setPagosTemp(pagosTemp.filter((_, i) => i !== index))
-  }
-
-  const totalPagado = pagosTemp.reduce((acc, p) => acc + p.amount, 0)
-  const restaPagar = Math.max(0, totalCarrito - totalPagado)
-
-  const confirmarVentaMultiplesPagos = async () => {
-    if (!turnoAbierto) {
-      alert('No hay un turno de caja abierto.')
-      return
-    }
-
-    if (totalPagado < totalCarrito) {
-      alert(`Falta cubrir $${(totalCarrito - totalPagado).toLocaleString()} del total.`)
-      return
-    }
-
-    setProcesandoVenta(true)
-    try {
-      const itemsPayload = carrito.map(item => ({
-        product_id: item.id,
-        quantity: item.cantidad,
-        unit_price: item.precio
-      }))
-
-      const paymentsPayload = pagosTemp.map(p => {
-        let metodoLimpio = String(p.method || 'efectivo').toLowerCase()
-        if (metodoLimpio === 'mercado_pago' || metodoLimpio === 'mercadopago') {
-          metodoLimpio = 'transferencia'
-        }
-        return {
-          method: metodoLimpio,
-          amount: p.amount
-        }
-      })
-
-      const { data, error } = await supabase.rpc('fn_process_sale', {
-        p_cash_shift_id: turnoAbierto.id,
-        p_client_id: null,
-        p_items: itemsPayload,
-        p_payments: paymentsPayload,
-        p_discount: 0
-      })
-
-      if (error) throw error
-
-      const saleId = typeof data === 'string' ? data : (data?.sale_id || data?.id)
-
-      setTicketVenta({
-        id: saleId || 'N/A',
-        fecha: new Date().toLocaleString('es-AR'),
-        items: [...carrito],
-        total: totalCarrito,
-        pagos: [...pagosTemp],
-        turnoId: turnoAbierto.id
-      })
-
-      setCarrito([])
-      setPagosTemp([])
-      setMostrarModalPago(false)
-      await cargarProductos()
-      await cargarVentasDashboard()
-    } catch (err: any) {
-      alert(`Error al procesar la venta: ${err.message}`)
-    } finally {
-      setProcesandoVenta(false)
-    }
-  }
-
-  const iniciarEscaner = async () => {
-    setEscaneando(true)
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        videoRef.current.play()
-        requestAnimationFrame(escanearFrame)
-      }
-    } catch (err) {
-      alert('No se pudo acceder a la cámara.')
-      setEscaneando(false)
-    }
-  }
-
-  const detenerEscaner = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream
-      stream.getTracks().forEach((track) => track.stop())
-      videoRef.current.srcObject = null
-    }
-    setEscaneando(false)
-  }
-
-  const escanearFrame = () => {
-    if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-      const canvas = canvasRef.current
-      if (canvas) {
-        const ctx = canvas.getContext('2d')
-        canvas.width = videoRef.current.videoWidth
-        canvas.height = videoRef.current.videoHeight
-        if (ctx) {
-          ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height)
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-          const code = jsQR(imageData.data, imageData.width, imageData.height)
-          if (code) {
-            const encontrado = productos.find((p) => p.codigo === code.data)
-            if (encontrado) {
-              agregarAlCarrito(encontrado)
-              detenerEscaner()
-              return
-            }
-          }
-        }
-      }
-    }
-    if (escaneando) {
-      requestAnimationFrame(escanearFrame)
-    }
-  }
-
-  const categoriasUnicas = ['TODAS', ...Array.from(new Set(productos.map((p) => p.categoria).filter(Boolean)))]
-
-  const productosFiltrados = productos.filter((p) => {
-    const coincideTexto =
-      p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-      (p.codigo && p.codigo.toLowerCase().includes(busqueda.toLowerCase()))
-    const coincideCat = categoriaSeleccionada === 'TODAS' || p.categoria === categoriaSeleccionada
-    return coincideTexto && coincideCat
-  })
-
-  const imprimirTicket = () => window.print()
-  const imprimirEtiquetas = () => window.print()
 
   const prepararEtiquetas = (producto: any) => {
     setEtiquetaProducto(producto)
@@ -888,29 +782,31 @@ export default function POS() {
   if (!montado) return null
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-purple-500 selection:text-white pb-24 md:pb-6">
+    <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-purple-500 selection:text-white pb-28 md:pb-6">
       {/* HEADER PRINCIPAL */}
-      <header className="sticky top-0 z-40 bg-neutral-900/60 backdrop-blur-xl border-b border-white/10 px-6 py-3 print:hidden">
+      <header className="sticky top-0 z-40 bg-neutral-900/80 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-3 print:hidden">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-gradient-to-tr from-purple-600 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30">
-              <span className="text-xl">🏪</span>
-            </div>
-            <div>
-              <h1 className="text-lg font-black tracking-wider text-white">TONEXOR</h1>
-              <p className="text-xs text-neutral-400">Control Comercial y Caja Transaccional</p>
+          <div className="flex items-center justify-between w-full md:w-auto">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 bg-gradient-to-tr from-purple-600 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30">
+                <span className="text-xl">🏪</span>
+              </div>
+              <div>
+                <h1 className="text-lg font-black tracking-wider text-white">TONEXOR</h1>
+                <p className="text-xs text-neutral-400">Control Comercial y Caja Transaccional</p>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-3">
             <SelectorNegocio />
             {turnoAbierto ? (
-              <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
+              <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl shrink-0">
                 <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 <span className="text-xs font-bold text-emerald-400">Caja Abierta</span>
               </div>
             ) : (
-              <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-xl">
+              <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-xl shrink-0">
                 <span className="h-2 w-2 rounded-full bg-rose-400"></span>
                 <span className="text-xs font-bold text-rose-400">Caja Cerrada</span>
               </div>
@@ -918,7 +814,7 @@ export default function POS() {
           </div>
         </div>
 
-        {/* BARRA DE NAVEGACIÓN COMPLETA (Solo PC/Tablet) */}
+        {/* BARRA DE NAVEGACIÓN PC/TABLET */}
         <div className="hidden md:flex max-w-7xl mx-auto gap-2 mt-4 overflow-x-auto pb-2 scrollbar-none">
           {[
             { id: 'pos', label: '🛒 POS / Ventas' },
@@ -929,12 +825,13 @@ export default function POS() {
             { id: 'dashboard', label: '📊 Dashboard' },
             { id: 'deudas', label: '👥 Deudas' },
             { id: 'senas', label: '🔖 Señas' },
-            { id: 'reposicion', label: '📦 Reposición / Pedidos' },
+            { id: 'reposicion', label: '📦 Pedidos' },
+            ...(!cargandoUsuario && userEmail === 'diegochacko@gmail.com' ? [{ id: 'admin', label: '🛠️ Admin' }] : []),
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setVistaActual(tab.id as any)}
-              className={`px-4 py-2 rounded-xl font-bold text-sm transition shadow-md border-t ${vistaActual === tab.id ? 'bg-gradient-to-b from-purple-600 to-purple-800 text-white border-white/30 shadow-purple-900/40' : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10 backdrop-blur-md'}`}
+              className={`px-4 py-2 rounded-xl font-bold text-sm transition shadow-md border-t cursor-pointer ${vistaActual === tab.id ? 'bg-gradient-to-b from-purple-600 to-purple-800 text-white border-white/30 shadow-purple-900/40' : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10 backdrop-blur-md'}`}
             >
               {tab.label}
             </button>
@@ -942,44 +839,70 @@ export default function POS() {
         </div>
       </header>
 
-      {/* 📱 BARRA DE NAVEGACIÓN INFERIOR (Solo visible en celulares) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-neutral-900/95 backdrop-blur-xl border-t border-white/10 flex justify-around items-center p-2.5 z-50 shadow-2xl print:hidden">
+      {/* 📱 BARRA DE NAVEGACIÓN INFERIOR (Celulares - ACCESO COMPLETO) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-neutral-900/95 backdrop-blur-2xl border-t border-white/10 flex justify-around items-center p-2 z-50 shadow-2xl print:hidden">
         <button
-          onClick={() => setVistaActual('pos')}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold ${vistaActual === 'pos' ? 'text-purple-400' : 'text-neutral-400'}`}
+          onClick={() => { setVistaActual('pos'); setMenuMovilAbierto(false); }}
+          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-xl ${vistaActual === 'pos' ? 'text-purple-400 bg-purple-500/10' : 'text-neutral-400'}`}
         >
-          <span className="text-lg">🛒</span>
+          <span className="text-xl">🛒</span>
           POS
         </button>
         <button
-          onClick={() => setVistaActual('inventario')}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold ${vistaActual === 'inventario' ? 'text-purple-400' : 'text-neutral-400'}`}
+          onClick={() => { setVistaActual('inventario'); setMenuMovilAbierto(false); }}
+          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-xl ${vistaActual === 'inventario' ? 'text-purple-400 bg-purple-500/10' : 'text-neutral-400'}`}
         >
-          <span className="text-lg">📦</span>
-          Inventario
+          <span className="text-xl">📦</span>
+          Stock
         </button>
         <button
-          onClick={() => setVistaActual('gastos')}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold ${vistaActual === 'gastos' ? 'text-purple-400' : 'text-neutral-400'}`}
+          onClick={() => { setVistaActual('gastos'); setMenuMovilAbierto(false); }}
+          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-xl ${vistaActual === 'gastos' ? 'text-purple-400 bg-purple-500/10' : 'text-neutral-400'}`}
         >
-          <span className="text-lg">💸</span>
+          <span className="text-xl">💸</span>
           Gastos
         </button>
         <button
-          onClick={() => setVistaActual('dashboard')}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold ${vistaActual === 'dashboard' ? 'text-purple-400' : 'text-neutral-400'}`}
+          onClick={() => { setVistaActual('dashboard'); setMenuMovilAbierto(false); }}
+          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-xl ${vistaActual === 'dashboard' ? 'text-purple-400 bg-purple-500/10' : 'text-neutral-400'}`}
         >
-          <span className="text-lg">📊</span>
-          Dashboard
+          <span className="text-xl">📊</span>
+          Panel
         </button>
         <button
-          onClick={() => setVistaActual('reposicion')}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold ${vistaActual === 'reposicion' ? 'text-purple-400' : 'text-neutral-400'}`}
+          onClick={() => setMenuMovilAbierto(!menuMovilAbierto)}
+          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-xl ${menuMovilAbierto || ['deudas', 'senas', 'proveedores', 'arqueo', 'reposicion', 'admin'].includes(vistaActual) ? 'text-purple-400 bg-purple-500/20' : 'text-neutral-400'}`}
         >
-          <span className="text-lg">📦</span>
-          Pedidos
+          <span className="text-xl">📂</span>
+          Más ▾
         </button>
       </nav>
+
+      {/* MENÚ FLOTANTE "MÁS" PARA CELULARES */}
+      {menuMovilAbierto && (
+        <div className="md:hidden fixed bottom-20 left-4 right-4 bg-neutral-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl p-4 shadow-2xl z-50 grid grid-cols-3 gap-2 animate-in fade-in slide-in-from-bottom-5">
+          {[
+            { id: 'deudas', label: '👥 Deudas', icon: '👥' },
+            { id: 'senas', label: '🔖 Señas', icon: '🔖' },
+            { id: 'proveedores', label: '🚚 Proveed.', icon: '🚚' },
+            { id: 'reposicion', label: '📦 Pedidos', icon: '📦' },
+            { id: 'arqueo', label: '🔒 Arqueo', icon: '🔒' },
+            ...(!cargandoUsuario && userEmail === 'diegochacko@gmail.com' ? [{ id: 'admin', label: '🛠️ Admin', icon: '🛠️' }] : []),
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => {
+                setVistaActual(item.id as any)
+                setMenuMovilAbierto(false)
+              }}
+              className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-xs font-bold gap-1 transition ${vistaActual === item.id ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-900/50' : 'bg-white/5 text-neutral-300 border-white/10 hover:bg-white/10'}`}
+            >
+              <span className="text-xl">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto p-4 sm:p-6">
         <div className="space-y-6">
@@ -1005,7 +928,7 @@ export default function POS() {
               </div>
               <button
                 onClick={abrirTurno}
-                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl shadow-xl shadow-purple-900/30 transition transform active:scale-95"
+                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl shadow-xl shadow-purple-900/30 transition transform active:scale-95 cursor-pointer"
               >
                 Abrir Turno de Caja
               </button>
@@ -1014,112 +937,8 @@ export default function POS() {
 
           {/* VISTA: POS / VENTAS */}
           {vistaActual === 'pos' && turnoAbierto && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-4">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={busqueda}
-                    onChange={(e) => setBusqueda(e.target.value)}
-                    placeholder="🔍 Buscar producto por nombre o código de barra..."
-                    className="flex-1 bg-neutral-900/60 border border-white/10 rounded-2xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:border-purple-500"
-                  />
-                  <button
-                    onClick={escaneando ? detenerEscaner : iniciarEscaner}
-                    className={`px-4 py-3 rounded-2xl font-bold flex items-center gap-2 border transition ${escaneando ? 'bg-rose-600/30 text-rose-300 border-rose-500' : 'bg-purple-600/20 text-purple-300 border-purple-500/30 hover:bg-purple-600/30'}`}
-                  >
-                    📷 {escaneando ? 'Cerrar' : 'Cámara'}
-                  </button>
-                </div>
-
-                {escaneando && (
-                  <div className="relative bg-black rounded-3xl overflow-hidden border border-purple-500/30 p-2">
-                    <video ref={videoRef} className="w-full h-48 object-cover rounded-2xl" />
-                    <canvas ref={canvasRef} className="hidden" />
-                    <div className="absolute inset-0 border-2 border-purple-500/50 pointer-events-none rounded-3xl animate-pulse"></div>
-                  </div>
-                )}
-
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-                  {categoriasUnicas.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setCategoriaSeleccionada(cat)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap border ${categoriaSeleccionada === cat ? 'bg-white/20 text-white border-white/40' : 'bg-white/5 text-neutral-400 border-white/5 hover:bg-white/10'}`}
-                    >
-                      {cat === 'TODAS' ? 'Todas las categorías' : (categoriasDB.find(c => c.id === cat)?.name || 'Categoría')}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[60vh] overflow-y-auto pr-1">
-                  {productosFiltrados.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => agregarAlCarrito(p)}
-                      className="group bg-neutral-900/50 hover:bg-neutral-800/80 border border-white/5 hover:border-purple-500/40 p-3.5 rounded-2xl text-left transition flex flex-col justify-between shadow-lg"
-                    >
-                      <div>
-                        <div className="flex justify-end items-center mb-1">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${p.stock <= p.min_stock ? 'bg-rose-500/20 text-rose-300' : 'bg-white/10 text-neutral-300'}`}>
-                            Stock: {p.stock}
-                          </span>
-                        </div>
-                        <h4 className="font-bold text-sm text-white group-hover:text-purple-300 transition line-clamp-2 mt-1">{p.nombre}</h4>
-                      </div>
-                      <div className="mt-3">
-                        <p className="text-base font-black text-white">${p.precio.toLocaleString()}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* CARRITO Y COBRO */}
-              <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-5 flex flex-col justify-between shadow-2xl h-[75vh]">
-                <div>
-                  <div className="flex justify-between items-center border-b border-white/10 pb-3 mb-3">
-                    <h3 className="font-black text-base text-white">Carrito de Compra</h3>
-                    <button onClick={() => setCarrito([])} className="text-xs text-rose-400 hover:text-rose-300 font-bold">Vaciar</button>
-                  </div>
-
-                  <div className="space-y-2 overflow-y-auto max-h-[45vh] pr-1">
-                    {carrito.map((item) => (
-                      <div key={item.id} className="bg-neutral-950/60 border border-white/5 rounded-2xl p-3 flex justify-between items-center">
-                        <div className="flex-1 pr-2">
-                          <p className="text-xs font-bold text-white truncate">{item.nombre}</p>
-                          <p className="text-[11px] text-neutral-400">${item.precio.toLocaleString()} c/u</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center bg-white/5 rounded-xl border border-white/10">
-                            <button onClick={() => cambiarCantidad(item.id, -1)} className="px-2 py-1 text-xs text-neutral-300 hover:text-white">-</button>
-                            <span className="px-2 text-xs font-bold text-white">{item.cantidad}</span>
-                            <button onClick={() => cambiarCantidad(item.id, 1)} className="px-2 py-1 text-xs text-neutral-300 hover:text-white">+</button>
-                          </div>
-                          <p className="text-xs font-bold text-white w-14 text-right">${(item.precio * item.cantidad).toLocaleString()}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {carrito.length === 0 && (
-                      <p className="text-center text-xs text-neutral-500 py-10">No hay productos en el carrito</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="border-t border-white/10 pt-4 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-neutral-400 font-bold">TOTAL:</span>
-                    <span className="text-2xl font-black text-white">${totalCarrito.toLocaleString()}</span>
-                  </div>
-                  <button
-                    onClick={abrirModalCobro}
-                    disabled={carrito.length === 0}
-                    className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-950/40 transition transform active:scale-95"
-                  >
-                    Cobrar Venta
-                  </button>
-                </div>
-              </div>
+            <div className="space-y-4">
+              <PosView turnoAbierto={turnoAbierto} onVentaCompletada={() => { cargarProductos(); cargarVentasDashboard(); }} />
             </div>
           )}
 
@@ -1135,7 +954,7 @@ export default function POS() {
                     <p className="text-xs text-neutral-400">Ingresá los datos del artículo para tu catálogo comercial</p>
                   </div>
                   {productoAEditar && (
-                    <button onClick={limpiarFormularioProducto} className="bg-white/5 hover:bg-white/10 text-neutral-300 text-xs px-3 py-1.5 rounded-xl border border-white/10">
+                    <button onClick={limpiarFormularioProducto} className="bg-white/5 hover:bg-white/10 text-neutral-300 text-xs px-3 py-1.5 rounded-xl border border-white/10 cursor-pointer">
                       ✕ Cancelar Edición
                     </button>
                   )}
@@ -1155,7 +974,16 @@ export default function POS() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-neutral-400">Código de Barras / SKU</label>
+                    <label className="text-xs font-bold text-neutral-400 flex justify-between items-center">
+                      <span>Código de Barras / SKU</span>
+                      <button
+                        type="button"
+                        onClick={() => { setDestinoEscaneo('inventario'); setEscaneandoCamara(true); }}
+                        className="text-purple-400 hover:text-purple-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>📷</span> Escanear
+                      </button>
+                    </label>
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -1260,7 +1088,7 @@ export default function POS() {
                       <button
                         type="button"
                         onClick={crearCategoriaRapida}
-                        className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-xl text-xs font-bold"
+                        className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-xl text-xs font-bold cursor-pointer"
                       >
                         + Crear
                       </button>
@@ -1271,7 +1099,7 @@ export default function POS() {
                     <button
                       type="submit"
                       disabled={guardandoProducto}
-                      className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black px-8 py-3 rounded-2xl shadow-xl shadow-purple-900/30 transition transform active:scale-95"
+                      className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black px-8 py-3 rounded-2xl shadow-xl shadow-purple-900/30 transition transform active:scale-95 cursor-pointer"
                     >
                       {guardandoProducto ? 'Guardando...' : productoAEditar ? '💾 Guardar Cambios' : '➕ Registrar Producto'}
                     </button>
@@ -1295,7 +1123,7 @@ export default function POS() {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
+                  <table className="w-full text-left text-sm min-w-[650px]">
                     <thead className="bg-white/5 text-neutral-400 text-xs uppercase tracking-wider">
                       <tr>
                         <th className="p-3">Artículo</th>
@@ -1334,13 +1162,13 @@ export default function POS() {
                             <td className="p-3 text-right space-x-2">
                               <button
                                 onClick={() => seleccionarProductoParaEditar(p)}
-                                className="bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 text-xs px-2.5 py-1.5 rounded-lg border border-purple-500/20"
+                                className="bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 text-xs px-2.5 py-1.5 rounded-lg border border-purple-500/20 cursor-pointer"
                               >
                                 ✏️ Editar
                               </button>
                               <button
                                 onClick={() => prepararEtiquetas(p)}
-                                className="bg-white/5 hover:bg-white/10 text-neutral-300 text-xs px-2.5 py-1.5 rounded-lg border border-white/10"
+                                className="bg-white/5 hover:bg-white/10 text-neutral-300 text-xs px-2.5 py-1.5 rounded-lg border border-white/10 cursor-pointer"
                               >
                                 🏷️ Etiqueta
                               </button>
@@ -1371,166 +1199,49 @@ export default function POS() {
           {vistaActual === 'deudas' && <div className="print:hidden"><ModuloDeudas /></div>}
           {vistaActual === 'senas' && <div className="print:hidden"><ModuloSenas /></div>}
           {vistaActual === 'reposicion' && <div className="print:hidden"><ModuloReposicion /></div>}
+          
+          {/* VISTA DE ADMINISTRACIÓN (Protegida) */}
+          {vistaActual === 'admin' && !cargandoUsuario && userEmail === 'diegochacko@gmail.com' && (
+            <div className="print:hidden">
+              <AdminUsuariosView />
+            </div>
+          )}
         </div>
 
-        {/* MODAL DE PAGOS MÚLTIPLES */}
-        {mostrarModalPago && (
-          <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-xl flex items-center justify-center p-4 z-50 print:hidden">
-            <div className="bg-neutral-900/90 backdrop-blur-2xl rounded-3xl max-w-md w-full border border-white/20 p-6 shadow-2xl space-y-6">
-              <div className="flex justify-between items-center border-b border-white/10 pb-4">
-                <h3 className="text-xl font-black text-white">💳 Cobro de Venta</h3>
-                <button onClick={() => setMostrarModalPago(false)} className="text-neutral-400 hover:text-white font-bold p-1 bg-white/5 rounded-xl">✕</button>
+        {/* MODAL DE ESCÁNER POR CÁMARA */}
+        {escaneandoCamara && (
+          <div className="fixed inset-0 bg-neutral-950/90 backdrop-blur-xl flex flex-col items-center justify-center p-4 z-50">
+            <div className="relative w-full max-w-md bg-neutral-900 border border-white/20 rounded-3xl p-6 shadow-2xl flex flex-col items-center space-y-4">
+              <div className="flex justify-between items-center w-full border-b border-white/10 pb-3">
+                <h3 className="font-black text-white text-base">
+                  {destinoEscaneo === 'inventario' ? '📷 Escanear Código para Producto' : '📷 Escanear para Venta (POS)'}
+                </h3>
+                <button
+                  onClick={() => setEscaneandoCamara(false)}
+                  className="text-neutral-400 hover:text-white font-bold px-2 py-1 cursor-pointer"
+                >
+                  ✕
+                </button>
               </div>
 
-              <div className="bg-neutral-950/60 p-4 rounded-2xl border border-white/10 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-neutral-400">Total a Pagar:</span>
-                  <span className="font-black text-white">${totalCarrito.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-neutral-400">Total Cubierto:</span>
-                  <span className="font-bold text-emerald-400">${totalPagado.toLocaleString()}</span>
-                </div>
-                {restaPagar > 0 && (
-                  <div className="flex justify-between text-sm border-t border-white/10 pt-2">
-                    <span className="text-rose-400 font-bold">Falta Cubrir:</span>
-                    <span className="font-black text-rose-400">${restaPagar.toLocaleString()}</span>
-                  </div>
-                )}
-              </div>
-
-              {metodoPagoActual === 'efectivo' && (
-                <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl space-y-3">
-                  <label className="text-xs font-bold text-emerald-300 uppercase tracking-wider block">
-                    💵 Dinero recibido en efectivo
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      step="1"
-                      value={efectivoRecibido}
-                      onChange={(e) => setEfectivoRecibido(e.target.value)}
-                      placeholder="¿Con cuánto abona?"
-                      className="flex-1 bg-neutral-950 border border-emerald-500/30 rounded-xl px-3 py-2 text-white text-base font-black"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setEfectivoRecibido(String(montoPagoActual || restaPagar))}
-                      className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 px-3 py-1.5 rounded-xl text-xs font-bold"
-                    >
-                      Exacto
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-3">
-                <label className="text-xs font-bold text-neutral-400 uppercase tracking-wider block">Agregar Pago</label>
-                <div className="flex gap-2">
-                  <select
-                    value={metodoPagoActual}
-                    onChange={(e) => cambiarMetodoPagoSelect(e.target.value)}
-                    className="bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-white text-sm"
-                  >
-                    <option value="efectivo">Efectivo</option>
-                    <option value="transferencia">Transferencia</option>
-                    <option value="tarjeta_debito">Débito</option>
-                    <option value="tarjeta_credito">Crédito</option>
-                    <option value="mercado_pago">Mercado Pago</option>
-                  </select>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={montoPagoActual}
-                    onChange={(e) => setMontoPagoActual(e.target.value)}
-                    placeholder={restaPagar > 0 ? String(restaPagar) : 'Monto'}
-                    className="flex-1 bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-bold"
-                  />
-                  <button
-                    onClick={agregarPago}
-                    className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded-xl text-sm"
-                  >
-                    +
-                  </button>
+              <div className="relative w-full aspect-square bg-black rounded-2xl overflow-hidden border border-white/10">
+                <video ref={videoRef} className="w-full h-full object-cover"></video>
+                <canvas ref={canvasRef} className="hidden"></canvas>
+                <div className="absolute inset-0 border-2 border-purple-500/50 rounded-2xl pointer-events-none flex items-center justify-center">
+                  <div className="w-48 h-24 border border-dashed border-purple-400 rounded-lg animate-pulse"></div>
                 </div>
               </div>
 
-              <div className="space-y-2 max-h-36 overflow-y-auto">
-                {pagosTemp.map((p, idx) => (
-                  <div key={idx} className="flex justify-between items-center bg-white/5 px-3 py-2 rounded-xl text-xs">
-                    <span className="font-bold text-neutral-200 capitalize">{p.method.replace('_', ' ')}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-black text-emerald-400">${p.amount.toLocaleString()}</span>
-                      <button onClick={() => eliminarPago(idx)} className="text-rose-400 hover:text-rose-300 font-bold">✕</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <p className="text-xs text-neutral-400 text-center">
+                Apunta la cámara hacia el código de barras o código QR.
+              </p>
 
               <button
-                onClick={confirmarVentaMultiplesPagos}
-                disabled={procesandoVenta || restaPagar > 0}
-                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-950/40 disabled:opacity-30 transition transform active:scale-95"
+                onClick={() => setEscaneandoCamara(false)}
+                className="w-full bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-xl text-sm transition cursor-pointer"
               >
-                {procesandoVenta ? 'Procesando Venta...' : 'Completar Venta y Cobro'}
+                Cancelar
               </button>
-            </div>
-          </div>
-        )}
-
-        {/* TICKET DE VENTA */}
-        {ticketVenta && (
-          <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-xl flex items-center justify-center p-4 z-50 print:p-0 print:static print:bg-transparent">
-            <div className="bg-white text-black p-6 rounded-3xl max-w-sm w-full font-mono text-xs shadow-2xl print:shadow-none print:w-full print:p-0">
-              <div className="text-center space-y-1 border-b border-black/20 pb-4 mb-4">
-                <h2 className="text-base font-black uppercase">{negocioActual?.nombre_negocio || 'MI COMERCIO'}</h2>
-                <p className="text-[10px] text-neutral-600">Comprobante No Válido como Factura</p>
-                <p className="text-[10px] text-neutral-600">{ticketVenta.fecha}</p>
-                <p className="text-[10px] text-neutral-600 font-bold">Ticket #{ticketVenta.id.substring(0, 8)}</p>
-              </div>
-
-              <div className="border-b border-black/20 pb-3 mb-3 space-y-2">
-                {ticketVenta.items.map((i: any, idx: number) => (
-                  <div key={idx} className="flex justify-between">
-                    <span>{i.cantidad}x {i.nombre}</span>
-                    <span className="font-bold">${(i.precio * i.cantidad).toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-1 border-b border-black/20 pb-3 mb-3">
-                <div className="flex justify-between font-black text-sm">
-                  <span>TOTAL:</span>
-                  <span>${ticketVenta.total.toLocaleString()}</span>
-                </div>
-                {ticketVenta.pagos.map((p: any, idx: number) => (
-                  <div key={idx} className="flex justify-between text-[11px] text-neutral-700">
-                    <span className="capitalize">{p.method.replace('_', ' ')}:</span>
-                    <span>${p.amount.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex justify-center my-3">
-                <svg ref={barcodeTicketRef} className="w-full max-h-12"></svg>
-              </div>
-
-              <p className="text-center text-[10px] text-neutral-500 mb-4">¡Gracias por su compra!</p>
-
-              <div className="flex gap-2 print:hidden">
-                <button
-                  onClick={imprimirTicket}
-                  className="flex-1 bg-black text-white font-bold py-2.5 rounded-xl text-xs hover:bg-neutral-800"
-                >
-                  🖨️ Imprimir
-                </button>
-                <button
-                  onClick={() => setTicketVenta(null)}
-                  className="flex-1 bg-neutral-200 text-black font-bold py-2.5 rounded-xl text-xs hover:bg-neutral-300"
-                >
-                  Cerrar
-                </button>
-              </div>
             </div>
           </div>
         )}
@@ -1541,7 +1252,7 @@ export default function POS() {
             <div className="bg-neutral-900 border border-white/20 p-6 rounded-3xl max-w-md w-full shadow-2xl print:bg-white print:border-none print:w-full print:p-0 space-y-4">
               <div className="flex justify-between items-center print:hidden border-b border-white/10 pb-3">
                 <h3 className="font-black text-white text-base">🏷️ Imprimir Etiquetas</h3>
-                <button onClick={() => setEtiquetaProducto(null)} className="text-neutral-400 font-bold">✕</button>
+                <button onClick={() => setEtiquetaProducto(null)} className="text-neutral-400 font-bold cursor-pointer">✕</button>
               </div>
 
               <div className="flex items-center gap-3 print:hidden">
@@ -1568,14 +1279,14 @@ export default function POS() {
 
               <div className="flex gap-2 print:hidden">
                 <button
-                  onClick={imprimirEtiquetas}
-                  className="flex-1 bg-purple-600 text-white font-bold py-2.5 rounded-xl text-xs hover:bg-purple-500"
+                  onClick={() => window.print()}
+                  className="flex-1 bg-purple-600 text-white font-bold py-2.5 rounded-xl text-xs hover:bg-purple-500 cursor-pointer"
                 >
                   🖨️ Imprimir Etiquetas
                 </button>
                 <button
                   onClick={() => setEtiquetaProducto(null)}
-                  className="flex-1 bg-white/10 text-white font-bold py-2.5 rounded-xl text-xs"
+                  className="flex-1 bg-white/10 text-white font-bold py-2.5 rounded-xl text-xs cursor-pointer"
                 >
                   Cerrar
                 </button>
