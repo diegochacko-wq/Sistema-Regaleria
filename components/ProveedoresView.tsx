@@ -21,6 +21,7 @@ export default function ProveedoresView() {
   }, [negocioActual?.id])
 
   const cargarProductos = async () => {
+    if (!negocioActual?.id) return
     setCargando(true)
     try {
       const { data, error } = await supabase
@@ -150,7 +151,7 @@ export default function ProveedoresView() {
                             <div className="min-w-0 pr-2">
                               <p className="text-neutral-200 font-medium truncate">{p.nombre}</p>
                               <p className="text-[10px] text-neutral-400">
-                                Costo: ${pCosto.toLocaleString('es-AR')} | Venta: ${pVenta.toLocaleString('es-AR')}
+                                Costo: ${pCosto.toLocaleString('es-AR')} \vert{} Venta:${pVenta.toLocaleString('es-AR')}
                               </p>
                             </div>
                             <span className={`font-bold px-2 py-0.5 rounded text-[11px] shrink-0 ${p.stock <= p.min_stock ? 'bg-rose-500/20 text-rose-300' : 'bg-white/5 text-neutral-300'}`}>
