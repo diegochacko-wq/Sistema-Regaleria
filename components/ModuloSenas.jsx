@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useNegocio } from '../context/NegocioContext' // Importamos el contexto del negocio
+import { useNegocio } from '../context/NegocioContext'
 
 export default function ModuloSenas() {
-  const { negocioActual } = useNegocio() // Obtenemos el negocio activo en la sesión
+  const { negocioActual } = useNegocio()
   const [senas, setSenas] = useState([])
   const [productos, setProductos] = useState([])
   const [loading, setLoading] = useState(true)
@@ -37,7 +37,6 @@ export default function ModuloSenas() {
     if (!negocioActual?.id) return
     setLoading(true)
 
-    // Cargar señas filtradas por el negocio actual
     const { data: dataSenas } = await supabase
       .from('senas')
       .select('*')
@@ -46,7 +45,6 @@ export default function ModuloSenas() {
     
     setSenas(dataSenas || [])
 
-    // Cargar productos del inventario filtrados por el negocio actual (igual que en el POS)
     const { data: dataProd, error } = await supabase
       .from('products')
       .select('*')
@@ -74,7 +72,6 @@ export default function ModuloSenas() {
     }
   }, [negocioActual?.id])
 
-  // Filtrado de productos basado en la sesión activa del negocio
   const productosFiltrados = productos.filter(p => 
     p.nombre.toLowerCase().includes(busquedaProducto.toLowerCase()) || 
     (p.codigo && p.codigo.toLowerCase().includes(busquedaProducto.toLowerCase()))
@@ -94,8 +91,8 @@ export default function ModuloSenas() {
 
     const senaNum = parseFloat(montoSena) || 0
     const totalNum = parseFloat(montoTotal) || 0
-    const restaNum = Math.max(0, totalNum - senaNum)
 
+    // Se eliminó 'resta_abonar' del objeto insertado para evitar el error de esquema
     const { error } = await supabase
       .from('senas')
       .insert([{
@@ -104,7 +101,6 @@ export default function ModuloSenas() {
         telefono: telefono || '',
         monto_sena: senaNum,
         monto_total: totalNum,
-        resta_abonar: restaNum, // Guardamos o calculamos el saldo pendiente
         concepto: concepto,
         fecha_sena: fechaSena,
         fecha_vencimiento: fechaVencimiento,
@@ -135,13 +131,11 @@ export default function ModuloSenas() {
     fetchData()
   }
 
-  // Cálculo de la resta a abonar en vivo para el formulario
   const calculoRestaForm = Math.max(0, (parseFloat(montoTotal) || 0) - (parseFloat(montoSena) || 0))
 
   return (
     <div style={{ padding: '16px', background: 'transparent', minHeight: '100vh', color: '#f8fafc', fontFamily: 'Inter, sans-serif' }}>
       
-      {/* Encabezado del Módulo */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#fff' }}>Módulo de Señas</h2>
@@ -151,7 +145,6 @@ export default function ModuloSenas() {
         </div>
       </div>
 
-      {/* Tarjeta del Formulario */}
       <form onSubmit={handleAgregarSena} style={{ 
         background: '#161922', 
         border: '1px solid #222634', 
@@ -186,7 +179,6 @@ export default function ModuloSenas() {
           />
         </div>
 
-        {/* Buscador de Catálogo de Productos del Negocio */}
         <div style={{ position: 'relative' }}>
           <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Concepto / Producto</label>
           <input 
@@ -217,7 +209,7 @@ export default function ModuloSenas() {
                     if (prod.precio) setMontoTotal(prod.precio)
                     setMostrarDropdown(false)
                   }}
-                  style={{ padding: '8px 10px', cursor: 'pointer', borderBottom: '1px solid #222634', fontSize: '12px', color: '#e2e8f0', display: 'flex', justifyContent: 'between' }}
+                  style={{ padding: '8px 10px', cursor: 'pointer', borderBottom: '1px solid #222634', fontSize: '12px', color: '#e2e8f0', display: 'flex', justifyContent: 'space-between' }}
                 >
                   <span>{prod.nombre}</span>
                   <span style={{ color: '#38bdf8', marginLeft: '8px' }}>(${prod.precio})</span>
@@ -249,7 +241,6 @@ export default function ModuloSenas() {
           />
         </div>
 
-        {/* Indicador en tiempo real de cuánto resta abonar */}
         <div style={{ background: '#0f1117', padding: '8px 10px', borderRadius: '8px', border: '1px solid #2a2f42' }}>
           <span style={{ display: 'block', fontSize: '10px', color: '#94a3b8' }}>Resta Abonar</span>
           <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#f43f5e' }}>${calculoRestaForm.toLocaleString()}</span>
@@ -293,7 +284,6 @@ export default function ModuloSenas() {
         </div>
       </form>
 
-      {/* Contenedor de la Tabla con Scroll Horizontal y la columna "Resta Abonar" */}
       <div style={{ background: '#161922', border: '1px solid #222634', borderRadius: '16px', overflow: 'hidden' }}>
         {loading ? (
           <p style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>Cargando registros...</p>
@@ -320,7 +310,7 @@ export default function ModuloSenas() {
                 {senas.map((item) => {
                   const montoTotalItem = Number(item.monto_total || 0)
                   const montoSenaItem = Number(item.monto_sena || 0)
-                  const restaAbonarItem = item.resta_abonar !== undefined ? Number(item.resta_abonar) : Math.max(0, montoTotalItem - montoSenaItem)
+                  const restaAbonarItem = Math.max(0, montoTotalItem - montoSenaItem)
 
                   return (
                     <tr key={item.id} style={{ borderBottom: '1px solid #222634', transition: 'background 0.2s' }}>
