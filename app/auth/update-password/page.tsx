@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
@@ -10,7 +10,27 @@ export default function UpdatePasswordPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [mensajeExito, setMensajeExito] = useState('')
+  const [esRecuperacion, setEsRecuperacion] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    // Escuchamos si Supabase detecta que el usuario entró por un enlace de recuperación
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setEsRecuperacion(true)
+      }
+    })
+
+    // Como reaseguro por si el evento ya pasó antes de registrar el listener
+    const hash = window.location.hash
+    if (hash && hash.includes('type=recovery')) {
+      setEsRecuperacion(true)
+    }
+
+    return () => {
+      authListener.subscription.unsubscribe()
+    }
+  }, [])
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,6 +49,7 @@ export default function UpdatePasswordPage() {
 
     setLoading(true)
 
+    // Actualizamos la contraseña del usuario actualmente autenticado por el link
     const { error } = await supabase.auth.updateUser({
       password: password,
     })
@@ -38,7 +59,7 @@ export default function UpdatePasswordPage() {
     if (error) {
       setError(error.message || 'No se pudo actualizar la contraseña.')
     } else {
-      setMensajeExito('¡Contraseña actualizada con éxito! Redirigindo al sistema...')
+      setMensajeExito('¡Contraseña actualizada con éxito! Redirigiendo al sistema...')
       setTimeout(() => {
         router.push('/')
       }, 2000)
@@ -53,12 +74,12 @@ export default function UpdatePasswordPage() {
             ⚡ TONEXOR
           </h1>
           <p className="text-gray-400 text-sm">
-            Ingresá tu nueva contraseña para acceder a tu cuenta.
+            Establecé tu nueva contraseña.
           </p>
         </div>
 
         <div className="bg-white rounded-xl p-6 text-black shadow-inner">
-          <h2 className="text-lg font-bold text-gray-800 mb-4 text-center">Restablecer Contraseña</h2>
+          <h2 className="text-lg font-bold text-gray-800 mb-4 text-center">Cambiar Contraseña</h2>
 
           {error && (
             <div className="mb-4 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg p-2.5">
