@@ -22,6 +22,7 @@ export default function GastosView() {
   }, [negocioActual?.id])
 
   const cargarGastos = async () => {
+    if (!negocioActual?.id) return
     try {
       const { data, error } = await supabase
         .from('cash_movements')
@@ -40,6 +41,7 @@ export default function GastosView() {
 
   const registrarGasto = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!negocioActual?.id) return
 
     const montoNum = parseFloat(monto)
     if (!monto || isNaN(montoNum) || montoNum <= 0) {
@@ -145,7 +147,7 @@ export default function GastosView() {
           <button
             type="submit"
             disabled={cargando}
-            className="w-full py-3.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-black rounded-xl transition-all shadow-lg shadow-rose-900/30 disabled:opacity-50"
+            className="w-full py-3.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-black rounded-xl transition-all shadow-lg shadow-rose-900/30 disabled:opacity-50 cursor-pointer"
           >
             {cargando ? 'Registrando...' : 'Registrar Salida de Caja'}
           </button>
