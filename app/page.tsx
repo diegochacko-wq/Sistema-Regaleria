@@ -23,11 +23,12 @@ function ModuloReposicion() {
   }, [negocioActual?.id])
 
   const cargarProductosRepo = async () => {
+    if (!negocioActual) return
     setCargandoRepo(true)
     const { data } = await supabase
       .from('products')
       .select('id, name, stock, min_stock, supplier, sale_price, cost_price, active')
-      .eq('business_id', negocioActual.id)
+      .eq('negocio_id', negocioActual.id)
       .order('name')
     setProductos(data || [])
     setCargandoRepo(false)
@@ -311,6 +312,8 @@ export default function POS() {
       cargarProductos()
       verificarTurnoAbierto()
       cargarCategorias()
+      cargarVentasDashboard()
+      cargarGastos()
     }
   }, [negocioActual?.id])
 
@@ -349,7 +352,7 @@ export default function POS() {
       const { data, error } = await supabase
         .from('product_categories')
         .select('*')
-        .eq('business_id', negocioActual.id)
+        .eq('negocio_id', negocioActual.id)
         .order('name')
       if (error) throw error
       setCategoriasDB(data || [])
@@ -365,7 +368,7 @@ export default function POS() {
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .eq('business_id', negocioActual.id)
+        .eq('negocio_id', negocioActual.id)
         .order('name')
 
       if (error) throw error
@@ -391,27 +394,30 @@ export default function POS() {
     }
   }
 
-    const verificarTurnoAbierto = async () => {
+  const verificarTurnoAbierto = async () => {
+    if (!negocioActual?.id) return
+    setCargandoTurno(true)
     try {
       const { data, error } = await supabase
         .from('cash_shifts')
         .select('*')
+        .eq('negocio_id', negocioActual.id)
         .eq('status', 'abierta')
-        // Si usás multi-negocio, filtrá también por negocioActual?.id:
-        // .eq('business_id', negocioActual.id)
         .order('opened_at', { ascending: false })
         .limit(1)
-        .maybeSingle() // <-- Reemplazar .single() por .maybeSingle()
+        .maybeSingle()
 
       if (error) {
         console.error('Error al buscar turno:', error.message || JSON.stringify(error))
         setTurnoAbierto(null)
       } else {
-        setTurnoAbierto(data) // Si data es null, la caja figura cerrada sin disparar error
+        setTurnoAbierto(data)
       }
     } catch (err: any) {
       console.error('Excepción al buscar turno:', err.message || err)
       setTurnoAbierto(null)
+    } finally {
+      setCargandoTurno(false)
     }
   }
 
@@ -422,7 +428,7 @@ export default function POS() {
       const { data, error } = await supabase
         .from('cash_movements')
         .select('*')
-        .eq('business_id', negocioActual.id)
+        .eq('negocio_id', negocioActual.id)
         .eq('type', 'egreso')
         .order('created_at', { ascending: false })
       if (error) throw error
@@ -432,23 +438,24 @@ export default function POS() {
     }
   }
 
-  // Cargar ventas para dashboard
+  // Cargar ventas para dashboard (CORREGIDO: Se corrigieron los nombres de columnas para que coincidan con Supabase)
   const cargarVentasDashboard = async () => {
+    if (!negocioActual?.id) return
     try {
-      // Consulta a la tabla sales con las columnas reales del esquema
       const { data, error } = await supabase
         .from('sales')
         .select('id, total, subtotal, discount, status, created_at, sale_payments(method, amount)')
+        .eq('negocio_id', negocioActual.id)
         .order('created_at', { ascending: false })
-        .limit(100)
+        .limit(500)
 
       if (error) {
-        // Fallback simple si sale_payments no tiene relación directa configurada
         const { data: fallbackData } = await supabase
           .from('sales')
           .select('id, total, subtotal, discount, status, created_at')
+          .eq('negocio_id', negocioActual.id)
           .order('created_at', { ascending: false })
-          .limit(100)
+          .limit(500)
 
         const adaptadas = (fallbackData || []).map((s: any) => ({
           ...s,
@@ -484,7 +491,7 @@ export default function POS() {
       let { data: caja } = await supabase
         .from('cash_registers')
         .select('id')
-        .eq('business_id', negocioActual.id)
+        .eq('negocio_id', negocioActual.id)
         .limit(1)
         .maybeSingle()
 
@@ -493,7 +500,7 @@ export default function POS() {
       if (!cajaId) {
         const { data: nuevaCaja, error: errorCaja } = await supabase
           .from('cash_registers')
-          .insert({ name: 'Caja Principal', business_id: negocioActual.id })
+          .insert({ name: 'Caja Principal', negocio_id: negocioActual.id })
           .select()
           .single()
         if (errorCaja) throw errorCaja
@@ -531,7 +538,7 @@ export default function POS() {
 
     try {
       const { error } = await supabase.from('cash_movements').insert({
-        business_id: negocioActual.id,
+        negocio_id: negocioActual.id,
         shift_id: turnoAbierto?.id || null,
         type: 'egreso',
         amount: monto,
@@ -611,14 +618,12 @@ export default function POS() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // Guardar (crear o actualizar producto completo)
-    // Genera un código numérico único para SKU / código de barras
   const generarCodigoAutomatico = () => {
     const nuevoCodigo = Date.now().toString().slice(-9) + Math.floor(10 + Math.random() * 90)
     setCodigoProd(nuevoCodigo)
   }
 
-const guardarProducto = async (e: React.FormEvent) => {
+  const guardarProducto = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!negocioActual?.id) {
       alert('Debes seleccionar un negocio')
@@ -639,7 +644,6 @@ const guardarProducto = async (e: React.FormEvent) => {
     setGuardandoProducto(true)
     try {
       const payload: any = {
-        business_id: negocioActual.id,
         name: nombre,
         sale_price: precio,
         cost_price: costo,
@@ -650,6 +654,7 @@ const guardarProducto = async (e: React.FormEvent) => {
         category_id: categoriaProd || null,
         supplier: proveedorProd.trim() || 'General',
         active: true,
+        negocio_id: negocioActual.id,
       }
 
       if (productoAEditar) {
@@ -657,7 +662,7 @@ const guardarProducto = async (e: React.FormEvent) => {
           .from('products')
           .update(payload)
           .eq('id', productoAEditar.id)
-          .eq('business_id', negocioActual.id)
+          .eq('negocio_id', negocioActual.id)
 
         if (error) throw error
         alert(`Producto "${nombre}" actualizado con éxito!`)
@@ -680,13 +685,11 @@ const guardarProducto = async (e: React.FormEvent) => {
     }
   }
 
-  // Crear nueva categoría
-   const crearCategoriaRapida = async () => {
+  const crearCategoriaRapida = async () => {
     if (!negocioActual?.id) return
     const nombre = (categoriaNuevaInput || '').trim()
     if (!nombre) return
 
-    // Si ya existe en el listado cargado, la seleccionamos directamente
     const existente = (categoriasDB || []).find(
       (c: any) => c.name.toLowerCase() === nombre.toLowerCase()
     )
@@ -699,16 +702,15 @@ const guardarProducto = async (e: React.FormEvent) => {
     try {
       const { data, error } = await supabase
         .from('product_categories')
-        .insert({ name: nombre, business_id: negocioActual.id })
+        .insert({ name: nombre, negocio_id: negocioActual.id })
         .select('*')
         .single()
 
       if (error) {
-        // Fallback: si ya existía en la base, buscarla y asignarla
         const { data: catEnDb } = await supabase
           .from('product_categories')
           .select('*')
-          .eq('business_id', negocioActual.id)
+          .eq('negocio_id', negocioActual.id)
           .ilike('name', nombre)
           .maybeSingle()
 
@@ -729,16 +731,16 @@ const guardarProducto = async (e: React.FormEvent) => {
     }
   }
 
-  // Edición directa de stock o precio desde la tabla
   const guardarEdicionDirecta = async (id: string, campo: 'stock' | 'price', valor: number) => {
     if (isNaN(valor) || valor < 0) return
+    if (!negocioActual?.id) return
     try {
       const campoDb = campo === 'price' ? 'sale_price' : 'stock'
       const { error } = await supabase
         .from('products')
         .update({ [campoDb]: valor })
         .eq('id', id)
-        .eq('business_id', negocioActual.id)
+        .eq('negocio_id', negocioActual.id)
 
       if (error) throw error
 
@@ -751,7 +753,6 @@ const guardarProducto = async (e: React.FormEvent) => {
     }
   }
 
-  // Agregar al carrito
   const agregarAlCarrito = (producto: any) => {
     if (producto.stock <= 0) {
       alert('Producto sin stock disponible.')
@@ -797,7 +798,6 @@ const guardarProducto = async (e: React.FormEvent) => {
 
   const totalCarrito = carrito.reduce((acc, item) => acc + item.precio * item.cantidad, 0)
 
-  // Iniciar proceso de cobro
   const abrirModalCobro = () => {
     setEfectivoRecibido('')
     if (!turnoAbierto) {
@@ -825,7 +825,7 @@ const guardarProducto = async (e: React.FormEvent) => {
 
   const totalPagado = pagosTemp.reduce((acc, p) => acc + p.amount, 0)
   const restaPagar = Math.max(0, totalCarrito - totalPagado)
-  // Procesamiento Transaccional de Venta
+
   const confirmarVentaMultiplesPagos = async () => {
     if (!turnoAbierto) {
       alert('No hay un turno de caja abierto.')
@@ -875,6 +875,7 @@ const guardarProducto = async (e: React.FormEvent) => {
       setPagosTemp([])
       setMostrarModalPago(false)
       await cargarProductos()
+      await cargarVentasDashboard()
     } catch (err: any) {
       console.error('Error procesando venta:', err)
       alert(`Error al procesar la venta: ${err.message || 'Error desconocido'}`)
@@ -883,7 +884,6 @@ const guardarProducto = async (e: React.FormEvent) => {
     }
   }
 
-  // Escáner de código de barras por cámara
   const iniciarEscaner = async () => {
     setEscaneando(true)
     try {
@@ -936,7 +936,6 @@ const guardarProducto = async (e: React.FormEvent) => {
     }
   }
 
-  // Filtrado de productos en POS
   const categoriasUnicas = ['TODAS', ...Array.from(new Set(productos.map((p) => p.categoria).filter(Boolean)))]
 
   const productosFiltrados = productos.filter((p) => {
@@ -947,7 +946,6 @@ const guardarProducto = async (e: React.FormEvent) => {
     return coincideTexto && coincideCat
   })
 
-  // Agrupación y acumulados por proveedor (Costo y Venta)
   const proveedoresResumen = productos.reduce((acc: any, p: any) => {
     const prov = p.proveedor || p.supplier || 'General'
     if (!acc[prov]) {
@@ -972,17 +970,11 @@ const guardarProducto = async (e: React.FormEvent) => {
     return acc
   }, {})
   const listaProveedoresResumen = Object.values(proveedoresResumen)
-  const productosPorProveedor = Object.entries(proveedoresResumen).reduce((acc: any, [prov, data]: any) => {
-    acc[prov] = data.productosLista
-    return acc
-  }, {})
 
-  // Impresión de ticket
   const imprimirTicket = () => {
     window.print()
   }
 
-  // Preparar impresión de etiquetas
   const prepararEtiquetas = (producto: any) => {
     setEtiquetaProducto(producto)
     setCantidadEtiquetas('1')
@@ -1012,11 +1004,48 @@ const guardarProducto = async (e: React.FormEvent) => {
     window.print()
   }
 
-  // Métricas para Dashboard
-  const productosStockBajo = productos.filter((p: any) => p.active !== false && p.stock <= p.min_stock)
+  // CORREGIDO: Se ajustó la condición para comparar estrictamente las fechas locales de forma robusta por año, mes y día
+  const hoyStr = new Date().toLocaleDateString('es-AR')
+  const ventasHoy = ventasHistoricas.filter(v => {
+    if (!v.created_at) return false
+    return new Date(v.created_at).toLocaleDateString('es-AR') === hoyStr
+  })
+  const totalVendidoHoy = ventasHoy.reduce((acc, v) => acc + Number(v.total_amount || 0), 0)
+
   const totalVendido = ventasHistoricas.reduce((acc, v) => acc + Number(v.total_amount || 0), 0)
   const totalGastos = gastosHistoricos.reduce((acc, g) => acc + Number(g.amount || 0), 0)
   const balanceNeto = totalVendido - totalGastos
+
+  // Informes Mensuales
+  const informesMensuales = (() => {
+    const mesesMap: Record<string, { mes: string; ventas: number; gastos: number; balance: number }> = {}
+
+    ventasHistoricas.forEach(v => {
+      const fecha = new Date(v.created_at)
+      const mesKey = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`
+      const nombreMes = fecha.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+      if (!mesesMap[mesKey]) {
+        mesesMap[mesKey] = { mes: nombreMes, ventas: 0, gastos: 0, balance: 0 }
+      }
+      mesesMap[mesKey].ventas += Number(v.total_amount || 0)
+    })
+
+    gastosHistoricos.forEach(g => {
+      const fecha = new Date(g.created_at)
+      const mesKey = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`
+      const nombreMes = fecha.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+      if (!mesesMap[mesKey]) {
+        mesesMap[mesKey] = { mes: nombreMes, ventas: 0, gastos: 0, balance: 0 }
+      }
+      mesesMap[mesKey].gastos += Number(g.amount || 0)
+    })
+
+    return Object.keys(mesesMap).sort().reverse().map(key => {
+      const item = mesesMap[key]
+      item.balance = item.ventas - item.gastos
+      return item
+    })
+  })()
 
   if (!montado) return null
 
@@ -1256,7 +1285,6 @@ const guardarProducto = async (e: React.FormEvent) => {
         {/* VISTA 2: INVENTARIO */}
         {vistaActual === 'inventario' && (
           <div className="space-y-8">
-            {/* Formulario de Alta y Edición */}
             <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl">
               <div className="flex justify-between items-center mb-6">
                 <div>
@@ -1412,7 +1440,6 @@ const guardarProducto = async (e: React.FormEvent) => {
               </form>
             </div>
 
-            {/* Tabla de Productos y Edición Directa */}
             <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -1529,7 +1556,6 @@ const guardarProducto = async (e: React.FormEvent) => {
                         </span>
                       </div>
 
-                      {/* Métricas acumuladas */}
                       <div className="grid grid-cols-2 gap-3 bg-white/[0.03] p-3 rounded-xl border border-white/5 text-xs">
                         <div>
                           <span className="text-neutral-400 block">Stock Total:</span>
@@ -1551,7 +1577,6 @@ const guardarProducto = async (e: React.FormEvent) => {
                         </div>
                       </div>
 
-                      {/* Lista de productos bajo este proveedor */}
                       <div className="space-y-1.5">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 block">Detalle de productos:</span>
                         <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
@@ -1709,22 +1734,68 @@ const guardarProducto = async (e: React.FormEvent) => {
 
         {/* VISTA 6: DASHBOARD */}
         {vistaActual === 'dashboard' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-neutral-900/60 border border-white/10 rounded-2xl p-5 shadow-lg">
-                <span className="text-xs font-bold text-neutral-400 uppercase">Ventas Totales</span>
-                <p className="text-2xl font-black text-emerald-400 mt-1">${totalVendido.toLocaleString()}</p>
-              </div>
-              <div className="bg-neutral-900/60 border border-white/10 rounded-2xl p-5 shadow-lg">
-                <span className="text-xs font-bold text-neutral-400 uppercase">Egresos / Gastos</span>
-                <p className="text-2xl font-black text-rose-400 mt-1">-${totalGastos.toLocaleString()}</p>
-              </div>
-              <div className="bg-neutral-900/60 border border-white/10 rounded-2xl p-5 shadow-lg">
-                <span className="text-xs font-bold text-neutral-400 uppercase">Balance Operativo</span>
-                <p className={`text-2xl font-black mt-1 ${balanceNeto >= 0 ? 'text-white' : 'text-rose-400'}`}>${balanceNeto.toLocaleString()}</p>
+          <div className="space-y-8">
+            <div className="space-y-3">
+              <h3 className="text-lg font-black text-white flex items-center gap-2">
+                <span>⚡</span> Resumen de Ventas de Hoy ({new Date().toLocaleDateString('es-AR')})
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-neutral-900/60 border border-emerald-500/30 rounded-2xl p-5 shadow-lg">
+                  <span className="text-xs font-bold text-neutral-400 uppercase">Ventas de Hoy</span>
+                  <p className="text-3xl font-black text-emerald-400 mt-1">${totalVendidoHoy.toLocaleString('es-AR')}</p>
+                  <p className="text-[11px] text-neutral-500 mt-1">{ventasHoy.length} ticket(s) emitidos hoy</p>
+                </div>
+                <div className="bg-neutral-900/60 border border-white/10 rounded-2xl p-5 shadow-lg">
+                  <span className="text-xs font-bold text-neutral-400 uppercase">Egresos / Gastos Totales</span>
+                  <p className="text-2xl font-black text-rose-400 mt-1">-${totalGastos.toLocaleString('es-AR')}</p>
+                </div>
+                <div className="bg-neutral-900/60 border border-white/10 rounded-2xl p-5 shadow-lg">
+                  <span className="text-xs font-bold text-neutral-400 uppercase">Balance Global</span>
+                  <p className={`text-2xl font-black mt-1 ${balanceNeto >= 0 ? 'text-white' : 'text-rose-400'}`}>${balanceNeto.toLocaleString('es-AR')}</p>
+                </div>
               </div>
             </div>
 
+            {/* Informes de Cada Mes */}
+            <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-xl font-black text-white">📈 Informes Mensuales</h3>
+                  <p className="text-xs text-neutral-400">Consolidado automático de rendimiento comercial por mes</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {informesMensuales.map((inf) => (
+                  <div key={inf.mes} className="bg-neutral-950/70 border border-white/10 rounded-2xl p-4 space-y-3 shadow-lg">
+                    <div className="border-b border-white/10 pb-2">
+                      <h4 className="font-black text-purple-400 capitalize text-base">{inf.mes}</h4>
+                    </div>
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-neutral-400">Ventas:</span>
+                        <span className="font-bold text-emerald-400">${inf.ventas.toLocaleString('es-AR')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-neutral-400">Gastos / Egresos:</span>
+                        <span className="font-bold text-rose-400">-${inf.gastos.toLocaleString('es-AR')}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t border-white/10 font-black text-sm">
+                        <span className="text-neutral-300">Resultado Neto:</span>
+                        <span className={inf.balance >= 0 ? 'text-white' : 'text-rose-400'}>
+                          ${inf.balance.toLocaleString('es-AR')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {informesMensuales.length === 0 && (
+                  <p className="text-neutral-500 text-xs col-span-full text-center py-6">No hay registros históricos de ventas o gastos para generar informes.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Últimas Ventas */}
             <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
               <h3 className="text-xl font-black text-white">Últimas Ventas Completadas</h3>
               <div className="overflow-x-auto">
@@ -1804,7 +1875,6 @@ const guardarProducto = async (e: React.FormEvent) => {
                 )}
               </div>
 
-              {/* Dinero en efectivo y Vuelto */}
               {metodoPagoActual === 'efectivo' && (
                 <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl space-y-3">
                   <label className="text-xs font-bold text-emerald-300 uppercase tracking-wider block">
@@ -1827,7 +1897,6 @@ const guardarProducto = async (e: React.FormEvent) => {
                       Exacto
                     </button>
                   </div>
-                  {/* Billetes rápidos */}
                   <div className="flex flex-wrap gap-1.5">
                     {[1000, 2000, 5000, 10000, 20000].map((b) => (
                       <button
@@ -1840,7 +1909,6 @@ const guardarProducto = async (e: React.FormEvent) => {
                       </button>
                     ))}
                   </div>
-                  {/* Cálculo del vuelto */}
                   {Number(efectivoRecibido) > 0 && (
                     <div className="flex justify-between items-center pt-2 border-t border-emerald-500/20">
                       <span className="text-xs text-emerald-200 font-bold uppercase">Vuelto a entregar:</span>
@@ -1856,7 +1924,6 @@ const guardarProducto = async (e: React.FormEvent) => {
                 </div>
               )}
 
-              {/* Agregar Medio de Pago */}
               <div className="space-y-3">
                 <label className="text-xs font-bold text-neutral-400 uppercase tracking-wider block">Agregar Pago</label>
                 <div className="flex gap-2">
@@ -1888,7 +1955,6 @@ const guardarProducto = async (e: React.FormEvent) => {
                 </div>
               </div>
 
-              {/* Lista de Pagos Ingresados */}
               <div className="space-y-2 max-h-36 overflow-y-auto">
                 {pagosTemp.map((p, idx) => (
                   <div key={idx} className="flex justify-between items-center bg-white/5 px-3 py-2 rounded-xl text-xs">
@@ -1917,7 +1983,7 @@ const guardarProducto = async (e: React.FormEvent) => {
           <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-xl flex items-center justify-center p-4 z-50 print:p-0 print:static print:bg-transparent">
             <div className="bg-white text-black p-6 rounded-3xl max-w-sm w-full font-mono text-xs shadow-2xl print:shadow-none print:w-full print:p-0">
               <div className="text-center space-y-1 border-b border-black/20 pb-4 mb-4">
-                <h2 className="text-base font-black uppercase">{negocioActual?.nombre || 'MI COMERCIO'}</h2>
+                <h2 className="text-base font-black uppercase">{negocioActual?.nombre_negocio || 'MI COMERCIO'}</h2>
                 <p className="text-[10px] text-neutral-600">Comprobante No Válido como Factura</p>
                 <p className="text-[10px] text-neutral-600">{ticketVenta.fecha}</p>
                 <p className="text-[10px] text-neutral-600 font-bold">Ticket #{ticketVenta.id.substring(0, 8)}</p>
@@ -1990,7 +2056,6 @@ const guardarProducto = async (e: React.FormEvent) => {
                 />
               </div>
 
-              {/* Contenedor de Etiquetas Imprimibles */}
               <div ref={etiquetasContenedorRef} className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto p-2 print:overflow-visible print:p-0">
                 {Array.from({ length: Math.max(1, parseInt(cantidadEtiquetas, 10) || 1) }).map((_, i) => (
                   <div key={i} className="bg-white text-black p-3 rounded-2xl border border-neutral-300 flex flex-col items-center justify-between text-center font-mono">
@@ -2009,7 +2074,7 @@ const guardarProducto = async (e: React.FormEvent) => {
                   🖨️ Imprimir Etiquetas
                 </button>
                 <button
-                  onClick={() => setEtiquetaProducto(null)}
+                  onClick={() => z => setEtiquetaProducto(null)}
                   className="flex-1 bg-white/10 text-white font-bold py-2.5 rounded-xl text-xs"
                 >
                   Cerrar
