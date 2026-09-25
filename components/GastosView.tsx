@@ -15,19 +15,21 @@ export default function GastosView() {
   const [gastos, setGastos] = useState<any[]>([])
   const [cargando, setCargando] = useState(false)
 
+  const negocioId = negocioActual?.id
+
   useEffect(() => {
-    if (negocioActual?.id) {
+    if (negocioId) {
       cargarGastos()
     }
-  }, [negocioActual?.id])
+  }, [negocioId])
 
   const cargarGastos = async () => {
-    if (!negocioActual?.id) return
+    if (!negocioId) return
     try {
       const { data, error } = await supabase
         .from('cash_movements')
         .select('*')
-        .eq('negocio_id', negocioActual.id)
+        .eq('negocio_id', negocioId)
         .eq('type', 'egreso')
         .order('created_at', { ascending: false })
         .limit(20)
@@ -41,7 +43,7 @@ export default function GastosView() {
 
   const registrarGasto = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!negocioActual?.id) return
+    if (!negocioId) return
 
     const montoNum = parseFloat(monto)
     if (!monto || isNaN(montoNum) || montoNum <= 0) {
@@ -56,7 +58,7 @@ export default function GastosView() {
       const { data: turno, error: turnoErr } = await supabase
         .from('cash_shifts')
         .select('id')
-        .eq('negocio_id', negocioActual.id)
+        .eq('negocio_id', negocioId)
         .eq('status', 'abierta')
         .limit(1)
         .maybeSingle()
@@ -70,7 +72,7 @@ export default function GastosView() {
       // 2. Insertar el egreso en cash_movements
       const { error } = await supabase.from('cash_movements').insert([
         {
-          negocio_id: negocioActual.id,
+          negocio_id: negocioId,
           shift_id: turno.id,
           type: 'egreso',
           amount: montoNum,
@@ -93,6 +95,14 @@ export default function GastosView() {
     } finally {
       setCargando(false)
     }
+  }
+
+  if (!negocioActual) {
+    return (
+      <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-6 shadow-xl backdrop-blur-md text-center py-12">
+        <p className="text-neutral-400 font-medium">Seleccioná un negocio para ver y registrar gastos.</p>
+      </div>
+    )
   }
 
   return (
