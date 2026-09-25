@@ -8,6 +8,11 @@ import { useNegocio } from '@/context/NegocioContext'
 import SelectorNegocio from "@/components/SelectorNegocio"
 import ModuloDeudas from '../components/ModuloDeudas'
 import ModuloSenas from '../components/ModuloSenas'
+import GastosView from '@/components/GastosView'
+import ProveedoresView from '@/components/ProveedoresView'
+import DashboardView from '@/components/DashboardView'
+import ArqueoView from '@/components/ArqueoView'
+import PosView from '@/components/PosView'
 
 // ============= MÓDULO DE REPOSICIÓN / PEDIDOS (integrado) =============
 function ModuloReposicion() {
@@ -247,7 +252,7 @@ export default function POS() {
   const [montoInicialInput, setMontoInicialInput] = useState('')
   const [cargandoTurno, setCargandoTurno] = useState(true)
   const [vistaActual, setVistaActual] = useState<
-    'pos' | 'inventario' | 'proveedores' | 'gastos' | 'arqueo' | 'dashboard' | 'deudas' | 'senas' | 'reposicion'
+    'pos' | 'inventario' | 'proveedores' | 'gastos' | 'arqueo' | 'dashboard' | 'deudas' | 'senas' | 'reposicion' | 'cajaPos'
   >('pos')
 
   // Datos para Dashboard y Gastos
@@ -294,9 +299,6 @@ export default function POS() {
   const [etiquetaProducto, setEtiquetaProducto] = useState<any | null>(null)
   const [cantidadEtiquetas, setCantidadEtiquetas] = useState('1')
   const etiquetasContenedorRef = useRef<HTMLDivElement | null>(null)
-
-  // Estado para el generador de pedido por stock bajo
-  const [mostrarModalPedido, setMostrarModalPedido] = useState(false)
 
   useEffect(() => {
     setMontado(true)
@@ -408,13 +410,11 @@ export default function POS() {
         .maybeSingle()
 
       if (error) {
-        console.error('Error al buscar turno:', error.message || JSON.stringify(error))
         setTurnoAbierto(null)
       } else {
         setTurnoAbierto(data)
       }
     } catch (err: any) {
-      console.error('Excepción al buscar turno:', err.message || err)
       setTurnoAbierto(null)
     } finally {
       setCargandoTurno(false)
@@ -438,7 +438,7 @@ export default function POS() {
     }
   }
 
-  // Cargar ventas para dashboard (CORREGIDO: Se corrigieron los nombres de columnas para que coincidan con Supabase)
+  // Cargar ventas para dashboard
   const cargarVentasDashboard = async () => {
     if (!negocioActual?.id) return
     try {
@@ -471,7 +471,7 @@ export default function POS() {
       }))
       setVentasHistoricas(adaptadas)
     } catch (err: any) {
-      console.error('Error al cargar ventas para dashboard:', err.message || err)
+      console.error('Error al cargar ventas:', err)
     }
   }
 
@@ -518,80 +518,10 @@ export default function POS() {
       setMontoInicialInput('')
       await verificarTurnoAbierto()
     } catch (err: any) {
-      console.error('Error abriendo turno:', err)
       alert(`Error al abrir caja: ${err.message || 'Error desconocido'}`)
     }
   }
 
-  // Registrar Gasto
-  const registrarGasto = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!negocioActual?.id) {
-      alert('Selecciona un negocio')
-      return
-    }
-    const monto = parseFloat(montoGasto)
-    if (isNaN(monto) || monto <= 0 || !descripcionGasto.trim()) {
-      alert('Ingresa una descripción y monto válido.')
-      return
-    }
-
-    try {
-      const { error } = await supabase.from('cash_movements').insert({
-        negocio_id: negocioActual.id,
-        shift_id: turnoAbierto?.id || null,
-        type: 'egreso',
-        amount: monto,
-        notes: `[${categoriaGasto}] ${descripcionGasto.trim()}`,
-      })
-
-      if (error) throw error
-
-      alert('Gasto registrado con éxito!')
-      setMontoGasto('')
-      setDescripcionGasto('')
-      cargarGastos()
-    } catch (err: any) {
-      console.error('Error registrando gasto:', err)
-      alert(`Error al registrar gasto: ${err.message}`)
-    }
-  }
-
-  // Cerrar Turno (Arqueo ciego)
-  const ejecutarArqueoCiego = async () => {
-    const contado = parseFloat(montoContado)
-    if (isNaN(contado) || contado < 0) {
-      alert('Ingresa el monto de dinero físico contado.')
-      return
-    }
-
-    if (!window.confirm('¿Estás seguro de que deseas cerrar la caja con este conteo?')) return
-
-    try {
-      const { data, error } = await supabase.rpc('fn_close_shift', {
-        p_shift_id: turnoAbierto.id,
-        p_counted_amount: contado,
-        p_notes: 'Cierre ciego desde POS',
-      })
-
-      if (error) throw error
-
-      const res = Array.isArray(data) ? data[0] : data
-      const diff = res?.difference_amount ?? 0
-      const diffStr = diff === 0 ? 'Sin diferencias (Perfecto)' : diff > 0 ? `Sobrante: +$${diff}` : `Faltante: -$${Math.abs(diff)}`
-
-      alert(`Turno cerrado exitosamente.\nEsperado en efectivo: $${res?.expected_amount ?? 0}\nContado: $${res?.counted_amount ?? 0}\nResultado: ${diffStr}`)
-
-      setMontoContado('')
-      setTurnoAbierto(null)
-      setVistaActual('pos')
-    } catch (err: any) {
-      console.error('Error cerrando turno:', err)
-      alert(`Error al cerrar caja: ${err.message}`)
-    }
-  }
-
-  // Limpiar formulario de alta / edición
   const limpiarFormularioProducto = () => {
     setNombreProd('')
     setPrecioProd('')
@@ -604,7 +534,6 @@ export default function POS() {
     setProductoAEditar(null)
   }
 
-  // Cargar datos en el formulario para editar
   const seleccionarProductoParaEditar = (p: any) => {
     setProductoAEditar(p)
     setNombreProd(p.nombre || '')
@@ -625,10 +554,7 @@ export default function POS() {
 
   const guardarProducto = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!negocioActual?.id) {
-      alert('Debes seleccionar un negocio')
-      return
-    }
+    if (!negocioActual?.id) return
 
     const nombre = nombreProd.trim()
     const precio = parseFloat(precioProd)
@@ -667,10 +593,7 @@ export default function POS() {
         if (error) throw error
         alert(`Producto "${nombre}" actualizado con éxito!`)
       } else {
-        const { error } = await supabase
-          .from('products')
-          .insert(payload)
-
+        const { error } = await supabase.from('products').insert(payload)
         if (error) throw error
         alert(`Producto "${nombre}" creado con éxito!`)
       }
@@ -678,8 +601,7 @@ export default function POS() {
       limpiarFormularioProducto()
       await cargarProductos()
     } catch (err: any) {
-      console.error('Error guardando producto:', err)
-      alert(`Error al guardar producto: ${err.message || 'Error desconocido'}`)
+      alert(`Error al guardar producto: ${err.message}`)
     } finally {
       setGuardandoProducto(false)
     }
@@ -690,15 +612,6 @@ export default function POS() {
     const nombre = (categoriaNuevaInput || '').trim()
     if (!nombre) return
 
-    const existente = (categoriasDB || []).find(
-      (c: any) => c.name.toLowerCase() === nombre.toLowerCase()
-    )
-    if (existente) {
-      setCategoriaProd(existente.id)
-      setCategoriaNuevaInput('')
-      return
-    }
-
     try {
       const { data, error } = await supabase
         .from('product_categories')
@@ -706,23 +619,7 @@ export default function POS() {
         .select('*')
         .single()
 
-      if (error) {
-        const { data: catEnDb } = await supabase
-          .from('product_categories')
-          .select('*')
-          .eq('negocio_id', negocioActual.id)
-          .ilike('name', nombre)
-          .maybeSingle()
-
-        if (catEnDb) {
-          setCategoriaProd(catEnDb.id)
-          setCategoriaNuevaInput('')
-          await cargarCategorias()
-          return
-        }
-        throw error
-      }
-
+      if (error) throw error
       setCategoriaNuevaInput('')
       await cargarCategorias()
       if (data?.id) setCategoriaProd(data.id)
@@ -812,6 +709,16 @@ export default function POS() {
     setMostrarModalPago(true)
   }
 
+  const cambiarMetodoPagoSelect = (nuevoMetodo: string) => {
+    setMetodoPagoActual(nuevoMetodo)
+    setPagosTemp(prev => {
+      if (prev.length === 1) {
+        return [{ ...prev[0], method: nuevoMetodo }]
+      }
+      return prev
+    })
+  }
+
   const agregarPago = () => {
     const monto = parseFloat(montoPagoActual)
     if (isNaN(monto) || monto <= 0) return
@@ -845,10 +752,16 @@ export default function POS() {
         unit_price: item.precio
       }))
 
-      const paymentsPayload = pagosTemp.map(p => ({
-        method: p.method,
-        amount: p.amount
-      }))
+      const paymentsPayload = pagosTemp.map(p => {
+        let metodoLimpio = String(p.method || 'efectivo').toLowerCase()
+        if (metodoLimpio === 'mercado_pago' || metodoLimpio === 'mercadopago') {
+          metodoLimpio = 'transferencia'
+        }
+        return {
+          method: metodoLimpio,
+          amount: p.amount
+        }
+      })
 
       const { data, error } = await supabase.rpc('fn_process_sale', {
         p_cash_shift_id: turnoAbierto.id,
@@ -877,8 +790,7 @@ export default function POS() {
       await cargarProductos()
       await cargarVentasDashboard()
     } catch (err: any) {
-      console.error('Error procesando venta:', err)
-      alert(`Error al procesar la venta: ${err.message || 'Error desconocido'}`)
+      alert(`Error al procesar la venta: ${err.message}`)
     } finally {
       setProcesandoVenta(false)
     }
@@ -894,7 +806,6 @@ export default function POS() {
         requestAnimationFrame(escanearFrame)
       }
     } catch (err) {
-      console.error('Error accediendo a cámara:', err)
       alert('No se pudo acceder a la cámara.')
       setEscaneando(false)
     }
@@ -946,34 +857,8 @@ export default function POS() {
     return coincideTexto && coincideCat
   })
 
-  const proveedoresResumen = productos.reduce((acc: any, p: any) => {
-    const prov = p.proveedor || p.supplier || 'General'
-    if (!acc[prov]) {
-      acc[prov] = {
-        proveedor: prov,
-        cantidadProductos: 0,
-        stockTotal: 0,
-        inversionCosto: 0,
-        valorVenta: 0,
-        productosLista: []
-      }
-    }
-    const costo = Number(p.cost_price ?? p.costo ?? p.precio_costo ?? 0)
-    const venta = Number(p.sale_price ?? p.precio ?? 0)
-    const stock = Number(p.stock ?? 0)
-
-    acc[prov].cantidadProductos += 1
-    acc[prov].stockTotal += stock
-    acc[prov].inversionCosto += costo * stock
-    acc[prov].valorVenta += venta * stock
-    acc[prov].productosLista.push(p)
-    return acc
-  }, {})
-  const listaProveedoresResumen = Object.values(proveedoresResumen)
-
-  const imprimirTicket = () => {
-    window.print()
-  }
+  const imprimirTicket = () => window.print()
+  const imprimirEtiquetas = () => window.print()
 
   const prepararEtiquetas = (producto: any) => {
     setEtiquetaProducto(producto)
@@ -1000,57 +885,10 @@ export default function POS() {
     }
   }, [etiquetaProducto, cantidadEtiquetas])
 
-  const imprimirEtiquetas = () => {
-    window.print()
-  }
-
-  // CORREGIDO: Se ajustó la condición para comparar estrictamente las fechas locales de forma robusta por año, mes y día
-  const hoyStr = new Date().toLocaleDateString('es-AR')
-  const ventasHoy = ventasHistoricas.filter(v => {
-    if (!v.created_at) return false
-    return new Date(v.created_at).toLocaleDateString('es-AR') === hoyStr
-  })
-  const totalVendidoHoy = ventasHoy.reduce((acc, v) => acc + Number(v.total_amount || 0), 0)
-
-  const totalVendido = ventasHistoricas.reduce((acc, v) => acc + Number(v.total_amount || 0), 0)
-  const totalGastos = gastosHistoricos.reduce((acc, g) => acc + Number(g.amount || 0), 0)
-  const balanceNeto = totalVendido - totalGastos
-
-  // Informes Mensuales
-  const informesMensuales = (() => {
-    const mesesMap: Record<string, { mes: string; ventas: number; gastos: number; balance: number }> = {}
-
-    ventasHistoricas.forEach(v => {
-      const fecha = new Date(v.created_at)
-      const mesKey = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`
-      const nombreMes = fecha.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
-      if (!mesesMap[mesKey]) {
-        mesesMap[mesKey] = { mes: nombreMes, ventas: 0, gastos: 0, balance: 0 }
-      }
-      mesesMap[mesKey].ventas += Number(v.total_amount || 0)
-    })
-
-    gastosHistoricos.forEach(g => {
-      const fecha = new Date(g.created_at)
-      const mesKey = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`
-      const nombreMes = fecha.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
-      if (!mesesMap[mesKey]) {
-        mesesMap[mesKey] = { mes: nombreMes, ventas: 0, gastos: 0, balance: 0 }
-      }
-      mesesMap[mesKey].gastos += Number(g.amount || 0)
-    })
-
-    return Object.keys(mesesMap).sort().reverse().map(key => {
-      const item = mesesMap[key]
-      item.balance = item.ventas - item.gastos
-      return item
-    })
-  })()
-
   if (!montado) return null
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-purple-500 selection:text-white">
+    <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-purple-500 selection:text-white pb-24 md:pb-6">
       {/* HEADER PRINCIPAL */}
       <header className="sticky top-0 z-40 bg-neutral-900/60 backdrop-blur-xl border-b border-white/10 px-6 py-3 print:hidden">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
@@ -1059,7 +897,7 @@ export default function POS() {
               <span className="text-xl">🏪</span>
             </div>
             <div>
-              <h1 className="text-lg font-black tracking-wider text-white">SISTEMA POS</h1>
+              <h1 className="text-lg font-black tracking-wider text-white">TONEXOR</h1>
               <p className="text-xs text-neutral-400">Control Comercial y Caja Transaccional</p>
             </div>
           </div>
@@ -1080,325 +918,327 @@ export default function POS() {
           </div>
         </div>
 
-        {/* BARRA DE NAVEGACIÓN */}
-        <div className="max-w-7xl mx-auto flex gap-2 mt-4 overflow-x-auto pb-2 scrollbar-none">
-          <button
-            onClick={() => setVistaActual('pos')}
-            className={`px-4 py-2 rounded-xl font-bold text-sm transition shadow-md border-t ${vistaActual === 'pos' ? 'bg-gradient-to-b from-purple-600 to-purple-800 text-white border-white/30 shadow-purple-900/40' : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10 backdrop-blur-md'}`}
-          >
-            🛒 POS / Ventas
-          </button>
-          <button
-            onClick={() => setVistaActual('inventario')}
-            className={`px-4 py-2 rounded-xl font-bold text-sm transition shadow-md border-t ${vistaActual === 'inventario' ? 'bg-gradient-to-b from-purple-600 to-purple-800 text-white border-white/30 shadow-purple-900/40' : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10 backdrop-blur-md'}`}
-          >
-            📦 Inventario
-          </button>
-          <button
-            onClick={() => setVistaActual('proveedores')}
-            className={`px-4 py-2 rounded-xl font-bold text-sm transition shadow-md border-t ${vistaActual === 'proveedores' ? 'bg-gradient-to-b from-purple-600 to-purple-800 text-white border-white/30 shadow-purple-900/40' : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10 backdrop-blur-md'}`}
-          >
-            🚚 Proveedores
-          </button>
-          <button
-            onClick={() => setVistaActual('gastos')}
-            className={`px-4 py-2 rounded-xl font-bold text-sm transition shadow-md border-t ${vistaActual === 'gastos' ? 'bg-gradient-to-b from-purple-600 to-purple-800 text-white border-white/30 shadow-purple-900/40' : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10 backdrop-blur-md'}`}
-          >
-            💸 Gastos
-          </button>
-          <button
-            onClick={() => setVistaActual('arqueo')}
-            className={`px-4 py-2 rounded-xl font-bold text-sm transition shadow-md border-t ${vistaActual === 'arqueo' ? 'bg-gradient-to-b from-purple-600 to-purple-800 text-white border-white/30 shadow-purple-900/40' : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10 backdrop-blur-md'}`}
-          >
-            🔒 Arqueo Ciego
-          </button>
-          <button
-            onClick={() => setVistaActual('dashboard')}
-            className={`px-4 py-2 rounded-xl font-bold text-sm transition shadow-md border-t ${vistaActual === 'dashboard' ? 'bg-gradient-to-b from-purple-600 to-purple-800 text-white border-white/30 shadow-purple-900/40' : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10 backdrop-blur-md'}`}
-          >
-            📊 Dashboard
-          </button>
-          <button
-            onClick={() => setVistaActual('deudas')}
-            className={`px-4 py-2 rounded-xl font-bold text-sm transition shadow-md border-t ${vistaActual === 'deudas' ? 'bg-gradient-to-b from-purple-600 to-purple-800 text-white border-white/30 shadow-purple-900/40' : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10 backdrop-blur-md'}`}
-          >
-            👥 Deudas
-          </button>
-          <button
-            onClick={() => setVistaActual('senas')}
-            className={`px-4 py-2 rounded-xl font-bold text-sm transition shadow-md border-t ${vistaActual === 'senas' ? 'bg-gradient-to-b from-purple-600 to-purple-800 text-white border-white/30 shadow-purple-900/40' : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10 backdrop-blur-md'}`}
-          >
-            🔖 Señas
-          </button>
-          <button
-            onClick={() => setVistaActual('reposicion')}
-            className={`px-4 py-2 rounded-xl font-bold text-sm transition shadow-md border-t ${vistaActual === 'reposicion' ? 'bg-gradient-to-b from-purple-600 to-purple-800 text-white border-white/30 shadow-purple-900/40' : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10 backdrop-blur-md'}`}
-          >
-            📦 Reposición / Pedidos
-          </button>
+        {/* BARRA DE NAVEGACIÓN COMPLETA (Solo PC/Tablet) */}
+        <div className="hidden md:flex max-w-7xl mx-auto gap-2 mt-4 overflow-x-auto pb-2 scrollbar-none">
+          {[
+            { id: 'pos', label: '🛒 POS / Ventas' },
+            { id: 'inventario', label: '📦 Inventario' },
+            { id: 'proveedores', label: '🚚 Proveedores' },
+            { id: 'gastos', label: '💸 Gastos' },            
+            { id: 'arqueo', label: '🔒 Arqueo Ciego' },
+            { id: 'dashboard', label: '📊 Dashboard' },
+            { id: 'deudas', label: '👥 Deudas' },
+            { id: 'senas', label: '🔖 Señas' },
+            { id: 'reposicion', label: '📦 Reposición / Pedidos' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setVistaActual(tab.id as any)}
+              className={`px-4 py-2 rounded-xl font-bold text-sm transition shadow-md border-t ${vistaActual === tab.id ? 'bg-gradient-to-b from-purple-600 to-purple-800 text-white border-white/30 shadow-purple-900/40' : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10 backdrop-blur-md'}`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </header>
 
+      {/* 📱 BARRA DE NAVEGACIÓN INFERIOR (Solo visible en celulares) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-neutral-900/95 backdrop-blur-xl border-t border-white/10 flex justify-around items-center p-2.5 z-50 shadow-2xl print:hidden">
+        <button
+          onClick={() => setVistaActual('pos')}
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold ${vistaActual === 'pos' ? 'text-purple-400' : 'text-neutral-400'}`}
+        >
+          <span className="text-lg">🛒</span>
+          POS
+        </button>
+        <button
+          onClick={() => setVistaActual('inventario')}
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold ${vistaActual === 'inventario' ? 'text-purple-400' : 'text-neutral-400'}`}
+        >
+          <span className="text-lg">📦</span>
+          Inventario
+        </button>
+        <button
+          onClick={() => setVistaActual('gastos')}
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold ${vistaActual === 'gastos' ? 'text-purple-400' : 'text-neutral-400'}`}
+        >
+          <span className="text-lg">💸</span>
+          Gastos
+        </button>
+        <button
+          onClick={() => setVistaActual('dashboard')}
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold ${vistaActual === 'dashboard' ? 'text-purple-400' : 'text-neutral-400'}`}
+        >
+          <span className="text-lg">📊</span>
+          Dashboard
+        </button>
+        <button
+          onClick={() => setVistaActual('reposicion')}
+          className={`flex flex-col items-center gap-1 text-[10px] font-bold ${vistaActual === 'reposicion' ? 'text-purple-400' : 'text-neutral-400'}`}
+        >
+          <span className="text-lg">📦</span>
+          Pedidos
+        </button>
+      </nav>
+
       <main className="max-w-7xl mx-auto p-4 sm:p-6">
         <div className="space-y-6">
-        {/* PANTALLA DE CAJA CERRADA */}
-        {!cargandoTurno && !turnoAbierto && vistaActual === 'pos' && (
-          <div className="max-w-md mx-auto my-12 bg-neutral-900/70 border border-white/10 rounded-3xl p-8 backdrop-blur-xl text-center space-y-6 shadow-2xl">
-            <div className="w-16 h-16 bg-purple-600/20 text-purple-400 rounded-full flex items-center justify-center mx-auto text-3xl">
-              🔒
-            </div>
-            <div>
-              <h2 className="text-2xl font-black text-white">Turno Cerrado</h2>
-              <p className="text-sm text-neutral-400 mt-1">Ingresa el monto inicial en efectivo para abrir la caja y comenzar a registrar ventas.</p>
-            </div>
-            <div className="space-y-3">
-              <label className="text-xs font-bold text-neutral-300 uppercase tracking-wider block text-left">Fondo Inicial ($):</label>
-              <input
-                type="number"
-                value={montoInicialInput}
-                onChange={(e) => setMontoInicialInput(e.target.value)}
-                placeholder="0.00"
-                className="w-full bg-neutral-950/80 border border-white/10 rounded-2xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:border-purple-500"
-              />
-            </div>
-            <button
-              onClick={abrirTurno}
-              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl shadow-xl shadow-purple-900/30 transition transform active:scale-95"
-            >
-              Abrir Turno de Caja
-            </button>
-          </div>
-        )}
-
-        {/* VISTA 1: POS / VENTAS */}
-        {vistaActual === 'pos' && turnoAbierto && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-4">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                  placeholder="🔍 Buscar producto por nombre o código de barra..."
-                  className="flex-1 bg-neutral-900/60 border border-white/10 rounded-2xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:border-purple-500"
-                />
-                <button
-                  onClick={escaneando ? detenerEscaner : iniciarEscaner}
-                  className={`px-4 py-3 rounded-2xl font-bold flex items-center gap-2 border transition ${escaneando ? 'bg-rose-600/30 text-rose-300 border-rose-500' : 'bg-purple-600/20 text-purple-300 border-purple-500/30 hover:bg-purple-600/30'}`}
-                >
-                  📷 {escaneando ? 'Cerrar' : 'Cámara'}
-                </button>
+          {/* PANTALLA DE CAJA CERRADA */}
+          {!cargandoTurno && !turnoAbierto && vistaActual === 'pos' && (
+            <div className="max-w-md mx-auto my-12 bg-neutral-900/70 border border-white/10 rounded-3xl p-8 backdrop-blur-xl text-center space-y-6 shadow-2xl">
+              <div className="w-16 h-16 bg-purple-600/20 text-purple-400 rounded-full flex items-center justify-center mx-auto text-3xl">
+                🔒
               </div>
-
-              {escaneando && (
-                <div className="relative bg-black rounded-3xl overflow-hidden border border-purple-500/30 p-2">
-                  <video ref={videoRef} className="w-full h-48 object-cover rounded-2xl" />
-                  <canvas ref={canvasRef} className="hidden" />
-                  <div className="absolute inset-0 border-2 border-purple-500/50 pointer-events-none rounded-3xl animate-pulse"></div>
-                </div>
-              )}
-
-              {/* Categorías */}
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-                {categoriasUnicas.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setCategoriaSeleccionada(cat)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap border ${categoriaSeleccionada === cat ? 'bg-white/20 text-white border-white/40' : 'bg-white/5 text-neutral-400 border-white/5 hover:bg-white/10'}`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              {/* Grid de productos */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[60vh] overflow-y-auto pr-1">
-                {productosFiltrados.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => agregarAlCarrito(p)}
-                    className="group bg-neutral-900/50 hover:bg-neutral-800/80 border border-white/5 hover:border-purple-500/40 p-3 rounded-2xl text-left transition flex flex-col justify-between shadow-lg"
-                  >
-                    <div>
-                      <div className="flex justify-between items-start">
-                        <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">{p.categoria || 'Gral'}</span>
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${p.stock <= p.min_stock ? 'bg-rose-500/20 text-rose-300' : 'bg-white/10 text-neutral-300'}`}>Stock: {p.stock}</span>
-                      </div>
-                      <h4 className="font-bold text-sm text-white group-hover:text-purple-300 transition line-clamp-2 mt-1">{p.nombre}</h4>
-                    </div>
-                    <div className="mt-3">
-                      <p className="text-base font-black text-white">${p.precio.toLocaleString()}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* CARRITO Y COBRO */}
-            <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-5 flex flex-col justify-between shadow-2xl h-[75vh]">
               <div>
-                <div className="flex justify-between items-center border-b border-white/10 pb-3 mb-3">
-                  <h3 className="font-black text-base text-white">Carrito de Compra</h3>
-                  <button onClick={() => setCarrito([])} className="text-xs text-rose-400 hover:text-rose-300 font-bold">Vaciar</button>
-                </div>
-
-                <div className="space-y-2 overflow-y-auto max-h-[45vh] pr-1">
-                  {carrito.map((item) => (
-                    <div key={item.id} className="bg-neutral-950/60 border border-white/5 rounded-2xl p-3 flex justify-between items-center">
-                      <div className="flex-1 pr-2">
-                        <p className="text-xs font-bold text-white truncate">{item.nombre}</p>
-                        <p className="text-[11px] text-neutral-400">${item.precio.toLocaleString()} c/u</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center bg-white/5 rounded-xl border border-white/10">
-                          <button onClick={() => cambiarCantidad(item.id, -1)} className="px-2 py-1 text-xs text-neutral-300 hover:text-white">-</button>
-                          <span className="px-2 text-xs font-bold text-white">{item.cantidad}</span>
-                          <button onClick={() => cambiarCantidad(item.id, 1)} className="px-2 py-1 text-xs text-neutral-300 hover:text-white">+</button>
-                        </div>
-                        <p className="text-xs font-bold text-white w-14 text-right">${(item.precio * item.cantidad).toLocaleString()}</p>
-                      </div>
-                    </div>
-                  ))}
-                  {carrito.length === 0 && (
-                    <p className="text-center text-xs text-neutral-500 py-10">No hay productos en el carrito</p>
-                  )}
-                </div>
+                <h2 className="text-2xl font-black text-white">Turno Cerrado</h2>
+                <p className="text-sm text-neutral-400 mt-1">Ingresa el monto inicial en efectivo para abrir la caja y comenzar a registrar ventas.</p>
               </div>
-
-              <div className="border-t border-white/10 pt-4 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-neutral-400 font-bold">TOTAL:</span>
-                  <span className="text-2xl font-black text-white">${totalCarrito.toLocaleString()}</span>
-                </div>
-                <button
-                  onClick={abrirModalCobro}
-                  disabled={carrito.length === 0}
-                  className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-950/40 transition transform active:scale-95"
-                >
-                  Cobrar Venta
-                </button>
+              <div className="space-y-3 text-left">
+                <label className="text-xs font-bold text-neutral-300 uppercase tracking-wider block">Fondo Inicial ($):</label>
+                <input
+                  type="number"
+                  value={montoInicialInput}
+                  onChange={(e) => setMontoInicialInput(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-neutral-950/80 border border-white/10 rounded-2xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:border-purple-500"
+                />
               </div>
+              <button
+                onClick={abrirTurno}
+                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl shadow-xl shadow-purple-900/30 transition transform active:scale-95"
+              >
+                Abrir Turno de Caja
+              </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* VISTA 2: INVENTARIO */}
-        {vistaActual === 'inventario' && (
-          <div className="space-y-8">
-            <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl">
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h3 className="text-xl font-black text-white">
-                    {productoAEditar ? `✏️ Editando: ${productoAEditar.nombre}` : '✨ Cargar Nuevo Producto'}
-                  </h3>
-                  <p className="text-xs text-neutral-400">Ingresá los datos del artículo para tu catálogo comercial</p>
-                </div>
-                {productoAEditar && (
-                  <button onClick={limpiarFormularioProducto} className="bg-white/5 hover:bg-white/10 text-neutral-300 text-xs px-3 py-1.5 rounded-xl border border-white/10">
-                    ✕ Cancelar Edición
-                  </button>
-                )}
-              </div>
-
-              <form onSubmit={guardarProducto} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2 space-y-1">
-                  <label className="text-xs font-bold text-neutral-400">Nombre del Producto *</label>
+          {/* VISTA: POS / VENTAS */}
+          {vistaActual === 'pos' && turnoAbierto && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-4">
+                <div className="flex gap-2">
                   <input
                     type="text"
-                    value={nombreProd}
-                    onChange={(e) => setNombreProd(e.target.value)}
-                    placeholder="Ej: Remera Algodón Talle M"
-                    className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
-                    required
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    placeholder="🔍 Buscar producto por nombre o código de barra..."
+                    className="flex-1 bg-neutral-900/60 border border-white/10 rounded-2xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:border-purple-500"
                   />
+                  <button
+                    onClick={escaneando ? detenerEscaner : iniciarEscaner}
+                    className={`px-4 py-3 rounded-2xl font-bold flex items-center gap-2 border transition ${escaneando ? 'bg-rose-600/30 text-rose-300 border-rose-500' : 'bg-purple-600/20 text-purple-300 border-purple-500/30 hover:bg-purple-600/30'}`}
+                  >
+                    📷 {escaneando ? 'Cerrar' : 'Cámara'}
+                  </button>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-neutral-400">Código de Barras / SKU</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={codigoProd}
-                      onChange={(e) => setCodigoProd(e.target.value)}
-                      placeholder="779123456789"
-                      className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
-                    />
+                {escaneando && (
+                  <div className="relative bg-black rounded-3xl overflow-hidden border border-purple-500/30 p-2">
+                    <video ref={videoRef} className="w-full h-48 object-cover rounded-2xl" />
+                    <canvas ref={canvasRef} className="hidden" />
+                    <div className="absolute inset-0 border-2 border-purple-500/50 pointer-events-none rounded-3xl animate-pulse"></div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                  {categoriasUnicas.map((cat) => (
                     <button
-                      type="button"
-                      onClick={generarCodigoAutomatico}
-                      title="Generar código aleatorio"
-                      className="bg-white/10 hover:bg-white/20 border border-white/20 px-3.5 rounded-xl text-sm font-bold text-white transition-colors flex items-center justify-center shrink-0 cursor-pointer"
+                      key={cat}
+                      onClick={() => setCategoriaSeleccionada(cat)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap border ${categoriaSeleccionada === cat ? 'bg-white/20 text-white border-white/40' : 'bg-white/5 text-neutral-400 border-white/5 hover:bg-white/10'}`}
                     >
-                      🎲 Auto
+                      {cat === 'TODAS' ? 'Todas las categorías' : (categoriasDB.find(c => c.id === cat)?.name || 'Categoría')}
                     </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[60vh] overflow-y-auto pr-1">
+                  {productosFiltrados.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => agregarAlCarrito(p)}
+                      className="group bg-neutral-900/50 hover:bg-neutral-800/80 border border-white/5 hover:border-purple-500/40 p-3.5 rounded-2xl text-left transition flex flex-col justify-between shadow-lg"
+                    >
+                      <div>
+                        <div className="flex justify-end items-center mb-1">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${p.stock <= p.min_stock ? 'bg-rose-500/20 text-rose-300' : 'bg-white/10 text-neutral-300'}`}>
+                            Stock: {p.stock}
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-sm text-white group-hover:text-purple-300 transition line-clamp-2 mt-1">{p.nombre}</h4>
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-base font-black text-white">${p.precio.toLocaleString()}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* CARRITO Y COBRO */}
+              <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-5 flex flex-col justify-between shadow-2xl h-[75vh]">
+                <div>
+                  <div className="flex justify-between items-center border-b border-white/10 pb-3 mb-3">
+                    <h3 className="font-black text-base text-white">Carrito de Compra</h3>
+                    <button onClick={() => setCarrito([])} className="text-xs text-rose-400 hover:text-rose-300 font-bold">Vaciar</button>
+                  </div>
+
+                  <div className="space-y-2 overflow-y-auto max-h-[45vh] pr-1">
+                    {carrito.map((item) => (
+                      <div key={item.id} className="bg-neutral-950/60 border border-white/5 rounded-2xl p-3 flex justify-between items-center">
+                        <div className="flex-1 pr-2">
+                          <p className="text-xs font-bold text-white truncate">{item.nombre}</p>
+                          <p className="text-[11px] text-neutral-400">${item.precio.toLocaleString()} c/u</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center bg-white/5 rounded-xl border border-white/10">
+                            <button onClick={() => cambiarCantidad(item.id, -1)} className="px-2 py-1 text-xs text-neutral-300 hover:text-white">-</button>
+                            <span className="px-2 text-xs font-bold text-white">{item.cantidad}</span>
+                            <button onClick={() => cambiarCantidad(item.id, 1)} className="px-2 py-1 text-xs text-neutral-300 hover:text-white">+</button>
+                          </div>
+                          <p className="text-xs font-bold text-white w-14 text-right">${(item.precio * item.cantidad).toLocaleString()}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {carrito.length === 0 && (
+                      <p className="text-center text-xs text-neutral-500 py-10">No hay productos en el carrito</p>
+                    )}
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-neutral-400">Precio de Venta ($) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={precioProd}
-                    onChange={(e) => setPrecioProd(e.target.value)}
-                    placeholder="15000"
-                    className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm font-bold text-emerald-400 focus:border-purple-500"
-                    required
-                  />
+                <div className="border-t border-white/10 pt-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-neutral-400 font-bold">TOTAL:</span>
+                    <span className="text-2xl font-black text-white">${totalCarrito.toLocaleString()}</span>
+                  </div>
+                  <button
+                    onClick={abrirModalCobro}
+                    disabled={carrito.length === 0}
+                    className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-950/40 transition transform active:scale-95"
+                  >
+                    Cobrar Venta
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VISTA: INVENTARIO */}
+          {vistaActual === 'inventario' && (
+            <div className="space-y-8">
+              <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h3 className="text-xl font-black text-white">
+                      {productoAEditar ? `✏️ Editando: ${productoAEditar.nombre}` : '✨ Cargar Nuevo Producto'}
+                    </h3>
+                    <p className="text-xs text-neutral-400">Ingresá los datos del artículo para tu catálogo comercial</p>
+                  </div>
+                  {productoAEditar && (
+                    <button onClick={limpiarFormularioProducto} className="bg-white/5 hover:bg-white/10 text-neutral-300 text-xs px-3 py-1.5 rounded-xl border border-white/10">
+                      ✕ Cancelar Edición
+                    </button>
+                  )}
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-neutral-400">Costo de Compra ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={costoProd}
-                    onChange={(e) => setCostoProd(e.target.value)}
-                    placeholder="8000"
-                    className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
-                  />
-                </div>
+                <form onSubmit={guardarProducto} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="text-xs font-bold text-neutral-400">Nombre del Producto *</label>
+                    <input
+                      type="text"
+                      value={nombreProd}
+                      onChange={(e) => setNombreProd(e.target.value)}
+                      placeholder="Ej: Remera Algodón Talle M"
+                      className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
+                      required
+                    />
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-neutral-400">Stock Actual</label>
-                  <input
-                    type="number"
-                    value={stockProd}
-                    onChange={(e) => setStockProd(e.target.value)}
-                    placeholder="10"
-                    className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
-                  />
-                </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-neutral-400">Código de Barras / SKU</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={codigoProd}
+                        onChange={(e) => setCodigoProd(e.target.value)}
+                        placeholder="779123456789"
+                        className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={generarCodigoAutomatico}
+                        title="Generar código aleatorio"
+                        className="bg-white/10 hover:bg-white/20 border border-white/20 px-3.5 rounded-xl text-sm font-bold text-white transition-colors flex items-center justify-center shrink-0 cursor-pointer"
+                      >
+                        🎲 Auto
+                      </button>
+                    </div>
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-neutral-400">Stock Mínimo (Alerta)</label>
-                  <input
-                    type="number"
-                    value={minStockProd}
-                    onChange={(e) => setMinStockProd(e.target.value)}
-                    placeholder="3"
-                    className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
-                  />
-                </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-neutral-400">Precio de Venta ($) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={precioProd}
+                      onChange={(e) => setPrecioProd(e.target.value)}
+                      placeholder="15000"
+                      className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm font-bold text-emerald-400 focus:border-purple-500"
+                      required
+                    />
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-neutral-400">Proveedor</label>
-                  <input
-                    type="text"
-                    value={proveedorProd}
-                    onChange={(e) => setProveedorProd(e.target.value)}
-                    placeholder="Ej: Distribuidora Norte"
-                    className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
-                  />
-                </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-neutral-400">Costo de Compra ($)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={costoProd}
+                      onChange={(e) => setCostoProd(e.target.value)}
+                      placeholder="8000"
+                      className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
+                    />
+                  </div>
 
-                <div className="md:col-span-2 space-y-1">
-                  <label className="text-xs font-bold text-neutral-400">Categoría</label>
-                  <div className="flex gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-neutral-400">Stock Actual</label>
+                    <input
+                      type="number"
+                      value={stockProd}
+                      onChange={(e) => setStockProd(e.target.value)}
+                      placeholder="10"
+                      className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-neutral-400">Stock Mínimo (Alerta)</label>
+                    <input
+                      type="number"
+                      value={minStockProd}
+                      onChange={(e) => setMinStockProd(e.target.value)}
+                      placeholder="3"
+                      className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-neutral-400">Proveedor</label>
+                    <input
+                      type="text"
+                      value={proveedorProd}
+                      onChange={(e) => setProveedorProd(e.target.value)}
+                      placeholder="Ej: Distribuidora Norte"
+                      className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="text-xs font-bold text-neutral-400">Categoría</label>
                     <select
                       value={categoriaProd}
                       onChange={(e) => setCategoriaProd(e.target.value)}
-                      className="flex-1 bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
+                      className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
                     >
                       <option value="">Sin categoría asignada</option>
                       {categoriasDB.map((c) => (
@@ -1406,447 +1246,131 @@ export default function POS() {
                       ))}
                     </select>
                   </div>
-                </div>
 
-                <div className="md:col-span-2 space-y-1">
-                  <label className="text-xs font-bold text-neutral-400">Nueva Categoría Rápida</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={categoriaNuevaInput}
-                      onChange={(e) => setCategoriaNuevaInput(e.target.value)}
-                      placeholder="Crear categoría..."
-                      className="flex-1 bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2 text-white text-sm"
-                    />
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="text-xs font-bold text-neutral-400">Nueva Categoría Rápida</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={categoriaNuevaInput}
+                        onChange={(e) => setCategoriaNuevaInput(e.target.value)}
+                        placeholder="Crear categoría..."
+                        className="flex-1 bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2 text-white text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={crearCategoriaRapida}
+                        className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-xl text-xs font-bold"
+                      >
+                        + Crear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-4 flex justify-end gap-3 mt-4">
                     <button
-                      type="button"
-                      onClick={crearCategoriaRapida}
-                      className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-xl text-xs font-bold"
+                      type="submit"
+                      disabled={guardandoProducto}
+                      className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black px-8 py-3 rounded-2xl shadow-xl shadow-purple-900/30 transition transform active:scale-95"
                     >
-                      + Crear
+                      {guardandoProducto ? 'Guardando...' : productoAEditar ? '💾 Guardar Cambios' : '➕ Registrar Producto'}
                     </button>
                   </div>
-                </div>
-
-                <div className="md:col-span-4 flex justify-end gap-3 mt-4">
-                  <button
-                    type="submit"
-                    disabled={guardandoProducto}
-                    className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black px-8 py-3 rounded-2xl shadow-xl shadow-purple-900/30 transition transform active:scale-95"
-                  >
-                    {guardandoProducto ? 'Guardando...' : productoAEditar ? '💾 Guardar Cambios' : '➕ Registrar Producto'}
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h3 className="text-xl font-black text-white">Listado de Artículos</h3>
-                  <p className="text-xs text-neutral-400">Podés editar stock o precio directamente haciendo clic en los valores</p>
-                </div>
-                <input
-                  type="text"
-                  value={busquedaInventario}
-                  onChange={(e) => setBusquedaInventario(e.target.value)}
-                  placeholder="🔍 Buscar en inventario..."
-                  className="bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2 text-white text-sm w-full sm:w-72"
-                />
+                </form>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-white/5 text-neutral-400 text-xs uppercase tracking-wider">
-                    <tr>
-                      <th className="p-3">Artículo</th>
-                      <th className="p-3">Código</th>
-                      <th className="p-3">Proveedor</th>
-                      <th className="p-3">Stock</th>
-                      <th className="p-3">Precio Venta</th>
-                      <th className="p-3 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {productos
-                      .filter(p => p.nombre.toLowerCase().includes(busquedaInventario.toLowerCase()) || (p.codigo && p.codigo.includes(busquedaInventario)))
-                      .map((p) => (
-                        <tr key={p.id} className="hover:bg-white/5 transition">
-                          <td className="p-3 font-bold text-white">{p.nombre}</td>
-                          <td className="p-3 text-xs text-neutral-400 font-mono">{p.codigo || '-'}</td>
-                          <td className="p-3 text-xs text-neutral-300">{p.proveedor}</td>
-                          <td className="p-3">
-                            <input
-                              type="number"
-                              defaultValue={p.stock}
-                              onBlur={(e) => guardarEdicionDirecta(p.id, 'stock', parseInt(e.target.value, 10))}
-                              className="w-16 bg-neutral-950/60 border border-white/10 rounded-lg px-2 py-1 text-white font-bold"
-                            />
-                          </td>
-                          <td className="p-3">
-                            <input
-                              type="number"
-                              step="0.01"
-                              defaultValue={p.precio}
-                              onBlur={(e) => guardarEdicionDirecta(p.id, 'price', parseFloat(e.target.value))}
-                              className="w-24 bg-neutral-950/60 border border-white/10 rounded-lg px-2 py-1 text-emerald-400 font-bold"
-                            />
-                          </td>
-                          <td className="p-3 text-right space-x-2">
-                            <button
-                              onClick={() => seleccionarProductoParaEditar(p)}
-                              className="bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 text-xs px-2.5 py-1.5 rounded-lg border border-purple-500/20"
-                            >
-                              ✏️ Editar
-                            </button>
-                            <button
-                              onClick={() => prepararEtiquetas(p)}
-                              className="bg-white/5 hover:bg-white/10 text-neutral-300 text-xs px-2.5 py-1.5 rounded-lg border border-white/10"
-                            >
-                              🏷️ Etiqueta
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VISTA 3: PROVEEDORES */}
-        {vistaActual === 'proveedores' && (
-          <div className="space-y-6">
-            <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                <div>
-                  <h3 className="text-xl font-black text-white">🚚 Resumen y Catálogo por Proveedor</h3>
-                  <p className="text-xs text-neutral-400">Totales acumulados de stock, inversión en costo y valor proyectado de venta por proveedor</p>
-                </div>
-                <div className="flex flex-wrap gap-4 text-xs bg-white/5 px-4 py-2.5 rounded-2xl border border-white/10">
+              <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
-                    <span className="text-neutral-400 block">Proveedores:</span>
-                    <strong className="text-white text-sm">{listaProveedoresResumen.length}</strong>
+                    <h3 className="text-xl font-black text-white">Listado de Artículos</h3>
+                    <p className="text-xs text-neutral-400">Podés editar stock o precio directamente haciendo clic en los valores</p>
                   </div>
-                  <div className="border-l border-white/10 pl-4">
-                    <span className="text-neutral-400 block">Inversión Global (Costo):</span>
-                    <strong className="text-amber-400 text-sm">
-                      ${listaProveedoresResumen.reduce((acc: number, p: any) => acc + p.inversionCosto, 0).toLocaleString('es-AR')}
-                    </strong>
-                  </div>
-                  <div className="border-l border-white/10 pl-4">
-                    <span className="text-neutral-400 block">Valor Global (Venta):</span>
-                    <strong className="text-emerald-400 text-sm">
-                      ${listaProveedoresResumen.reduce((acc: number, p: any) => acc + p.valorVenta, 0).toLocaleString('es-AR')}
-                    </strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {listaProveedoresResumen.map((prov: any) => {
-                  const gananciaEstimada = prov.valorVenta - prov.inversionCosto
-                  return (
-                    <div key={prov.proveedor} className="bg-neutral-950/70 border border-white/10 rounded-2xl p-5 space-y-4 hover:border-purple-500/40 transition shadow-lg">
-                      <div className="flex justify-between items-center border-b border-white/10 pb-2">
-                        <h4 className="font-black text-purple-400 text-lg">{prov.proveedor}</h4>
-                        <span className="text-xs bg-purple-500/10 text-purple-300 font-semibold px-2.5 py-1 rounded-lg border border-purple-500/20">
-                          {prov.cantidadProductos} {prov.cantidadProductos === 1 ? 'artículo' : 'artículos'}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 bg-white/[0.03] p-3 rounded-xl border border-white/5 text-xs">
-                        <div>
-                          <span className="text-neutral-400 block">Stock Total:</span>
-                          <strong className="text-white text-sm">{prov.stockTotal} un.</strong>
-                        </div>
-                        <div>
-                          <span className="text-neutral-400 block">Ganancia Proy.:</span>
-                          <strong className={`text-sm ${gananciaEstimada >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            ${gananciaEstimada.toLocaleString('es-AR')}
-                          </strong>
-                        </div>
-                        <div className="pt-1 border-t border-white/5">
-                          <span className="text-neutral-400 block">Inversión (Costo):</span>
-                          <strong className="text-neutral-200 text-sm">${prov.inversionCosto.toLocaleString('es-AR')}</strong>
-                        </div>
-                        <div className="pt-1 border-t border-white/5">
-                          <span className="text-neutral-400 block">Valor de Venta:</span>
-                          <strong className="text-emerald-400 text-sm">${prov.valorVenta.toLocaleString('es-AR')}</strong>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 block">Detalle de productos:</span>
-                        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                          {prov.productosLista.map((p: any) => {
-                            const pCosto = Number(p.cost_price ?? p.costo ?? p.precio_costo ?? 0)
-                            const pVenta = Number(p.sale_price ?? p.precio ?? 0)
-                            return (
-                              <div key={p.id} className="flex justify-between items-center text-xs bg-white/[0.02] p-2 rounded-lg border border-white/5">
-                                <div className="min-w-0 pr-2">
-                                  <p className="text-neutral-200 font-medium truncate">{p.nombre}</p>
-                                  <p className="text-[10px] text-neutral-400">
-                                    Costo: ${pCosto.toLocaleString('es-AR')} | Venta: ${pVenta.toLocaleString('es-AR')}
-                                  </p>
-                                </div>
-                                <span className={`font-bold px-2 py-0.5 rounded text-[11px] shrink-0 ${p.stock <= p.min_stock ? 'bg-rose-500/20 text-rose-300' : 'bg-white/5 text-neutral-300'}`}>
-                                  {p.stock} un.
-                                </span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VISTA 4: GASTOS */}
-        {vistaActual === 'gastos' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl h-fit space-y-4">
-              <h3 className="text-xl font-black text-white">💸 Registrar Egreso / Gasto</h3>
-              <form onSubmit={registrarGasto} className="space-y-4">
-                <div>
-                  <label className="text-xs font-bold text-neutral-400 block mb-1">Monto ($):</label>
                   <input
-                    type="number"
-                    step="0.01"
-                    value={montoGasto}
-                    onChange={(e) => setMontoGasto(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white font-bold"
-                    required
+                    type="text"
+                    value={busquedaInventario}
+                    onChange={(e) => setBusquedaInventario(e.target.value)}
+                    placeholder="🔍 Buscar en inventario..."
+                    className="bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2 text-white text-sm w-full sm:w-72"
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-neutral-400 block mb-1">Categoría:</label>
-                  <select
-                    value={categoriaGasto}
-                    onChange={(e) => setCategoriaGasto(e.target.value)}
-                    className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm"
-                  >
-                    <option value="General">General</option>
-                    <option value="Proveedores">Pago a Proveedores</option>
-                    <option value="Servicios">Servicios / Alquiler</option>
-                    <option value="Sueldos">Sueldos / Retiros</option>
-                    <option value="Mantenimiento">Mantenimiento</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-neutral-400 block mb-1">Descripción / Motivo:</label>
-                  <textarea
-                    value={descripcionGasto}
-                    onChange={(e) => setDescripcionGasto(e.target.value)}
-                    placeholder="Ej: Pago de flete mercadería"
-                    className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2 text-white text-sm"
-                    rows={3}
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 text-white font-black py-3 rounded-xl shadow-lg shadow-rose-900/30"
-                >
-                  Registrar Salida de Caja
-                </button>
-              </form>
-            </div>
 
-            <div className="lg:col-span-2 bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
-              <h3 className="text-xl font-black text-white">Historial de Salidas / Gastos</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-white/5 text-neutral-400 text-xs uppercase">
-                    <tr>
-                      <th className="p-3">Fecha</th>
-                      <th className="p-3">Motivo</th>
-                      <th className="p-3 text-right">Monto</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {gastosHistoricos.map((g) => (
-                      <tr key={g.id} className="hover:bg-white/5">
-                        <td className="p-3 text-xs text-neutral-400">{new Date(g.created_at).toLocaleString('es-AR')}</td>
-                        <td className="p-3 text-neutral-200">{g.notes}</td>
-                        <td className="p-3 text-right font-black text-rose-400">-${Number(g.amount).toLocaleString()}</td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-white/5 text-neutral-400 text-xs uppercase tracking-wider">
+                      <tr>
+                        <th className="p-3">Artículo</th>
+                        <th className="p-3">Código</th>
+                        <th className="p-3">Proveedor</th>
+                        <th className="p-3">Stock</th>
+                        <th className="p-3">Precio Venta</th>
+                        <th className="p-3 text-right">Acciones</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VISTA 5: ARQUEO CIEGO */}
-        {vistaActual === 'arqueo' && (
-          <div className="max-w-lg mx-auto bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl space-y-6">
-            <div className="text-center space-y-2">
-              <span className="text-4xl">🔒</span>
-              <h3 className="text-2xl font-black text-white">Arqueo Ciego de Caja</h3>
-              <p className="text-xs text-neutral-400">
-                Por seguridad, contá el dinero físico en efectivo sin ver el total del sistema. Al cerrar, el sistema auditará si hay sobrantes o faltantes.
-              </p>
-            </div>
-
-            {turnoAbierto ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-bold text-neutral-300 uppercase block mb-1">Efectivo Total Contado Físicamente ($):</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={montoContado}
-                    onChange={(e) => setMontoContado(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full bg-neutral-950/80 border border-white/10 rounded-2xl px-4 py-3.5 text-white text-xl font-black focus:border-purple-500"
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={() => setVistaActual('pos')} className="flex-1 bg-white/5 hover:bg-white/10 text-neutral-300 py-3 rounded-xl font-bold text-sm">
-                    Volver al POS
-                  </button>
-                  <button
-                    onClick={ejecutarArqueoCiego}
-                    className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-xl font-black text-sm shadow-xl shadow-purple-900/40"
-                  >
-                    Confirmar Cierre de Caja
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-6">
-                <p className="text-neutral-400 text-sm mb-4">No hay un turno de caja abierto en este momento.</p>
-                <button onClick={() => setVistaActual('pos')} className="bg-purple-600 text-white px-4 py-2 rounded-xl font-bold text-sm">
-                  Ir a Abrir Turno
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* VISTA 6: DASHBOARD */}
-        {vistaActual === 'dashboard' && (
-          <div className="space-y-8">
-            <div className="space-y-3">
-              <h3 className="text-lg font-black text-white flex items-center gap-2">
-                <span>⚡</span> Resumen de Ventas de Hoy ({new Date().toLocaleDateString('es-AR')})
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-neutral-900/60 border border-emerald-500/30 rounded-2xl p-5 shadow-lg">
-                  <span className="text-xs font-bold text-neutral-400 uppercase">Ventas de Hoy</span>
-                  <p className="text-3xl font-black text-emerald-400 mt-1">${totalVendidoHoy.toLocaleString('es-AR')}</p>
-                  <p className="text-[11px] text-neutral-500 mt-1">{ventasHoy.length} ticket(s) emitidos hoy</p>
-                </div>
-                <div className="bg-neutral-900/60 border border-white/10 rounded-2xl p-5 shadow-lg">
-                  <span className="text-xs font-bold text-neutral-400 uppercase">Egresos / Gastos Totales</span>
-                  <p className="text-2xl font-black text-rose-400 mt-1">-${totalGastos.toLocaleString('es-AR')}</p>
-                </div>
-                <div className="bg-neutral-900/60 border border-white/10 rounded-2xl p-5 shadow-lg">
-                  <span className="text-xs font-bold text-neutral-400 uppercase">Balance Global</span>
-                  <p className={`text-2xl font-black mt-1 ${balanceNeto >= 0 ? 'text-white' : 'text-rose-400'}`}>${balanceNeto.toLocaleString('es-AR')}</p>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {productos
+                        .filter(p => p.nombre.toLowerCase().includes(busquedaInventario.toLowerCase()) || (p.codigo && p.codigo.includes(busquedaInventario)))
+                        .map((p) => (
+                          <tr key={p.id} className="hover:bg-white/5 transition">
+                            <td className="p-3 font-bold text-white">{p.nombre}</td>
+                            <td className="p-3 text-xs text-neutral-400 font-mono">{p.codigo || '-'}</td>
+                            <td className="p-3 text-xs text-neutral-300">{p.proveedor}</td>
+                            <td className="p-3">
+                              <input
+                                type="number"
+                                defaultValue={p.stock}
+                                onBlur={(e) => guardarEdicionDirecta(p.id, 'stock', parseInt(e.target.value, 10))}
+                                className="w-16 bg-neutral-950/60 border border-white/10 rounded-lg px-2 py-1 text-white font-bold"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input
+                                type="number"
+                                step="0.01"
+                                defaultValue={p.precio}
+                                onBlur={(e) => guardarEdicionDirecta(p.id, 'price', parseFloat(e.target.value))}
+                                className="w-24 bg-neutral-950/60 border border-white/10 rounded-lg px-2 py-1 text-emerald-400 font-bold"
+                              />
+                            </td>
+                            <td className="p-3 text-right space-x-2">
+                              <button
+                                onClick={() => seleccionarProductoParaEditar(p)}
+                                className="bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 text-xs px-2.5 py-1.5 rounded-lg border border-purple-500/20"
+                              >
+                                ✏️ Editar
+                              </button>
+                              <button
+                                onClick={() => prepararEtiquetas(p)}
+                                className="bg-white/5 hover:bg-white/10 text-neutral-300 text-xs px-2.5 py-1.5 rounded-lg border border-white/10"
+                              >
+                                🏷️ Etiqueta
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
+          )}
 
-            {/* Informes de Cada Mes */}
-            <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-xl font-black text-white">📈 Informes Mensuales</h3>
-                  <p className="text-xs text-neutral-400">Consolidado automático de rendimiento comercial por mes</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {informesMensuales.map((inf) => (
-                  <div key={inf.mes} className="bg-neutral-950/70 border border-white/10 rounded-2xl p-4 space-y-3 shadow-lg">
-                    <div className="border-b border-white/10 pb-2">
-                      <h4 className="font-black text-purple-400 capitalize text-base">{inf.mes}</h4>
-                    </div>
-                    <div className="space-y-1.5 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-neutral-400">Ventas:</span>
-                        <span className="font-bold text-emerald-400">${inf.ventas.toLocaleString('es-AR')}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-neutral-400">Gastos / Egresos:</span>
-                        <span className="font-bold text-rose-400">-${inf.gastos.toLocaleString('es-AR')}</span>
-                      </div>
-                      <div className="flex justify-between pt-2 border-t border-white/10 font-black text-sm">
-                        <span className="text-neutral-300">Resultado Neto:</span>
-                        <span className={inf.balance >= 0 ? 'text-white' : 'text-rose-400'}>
-                          ${inf.balance.toLocaleString('es-AR')}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {informesMensuales.length === 0 && (
-                  <p className="text-neutral-500 text-xs col-span-full text-center py-6">No hay registros históricos de ventas o gastos para generar informes.</p>
-                )}
-              </div>
-            </div>
-
-            {/* Últimas Ventas */}
-            <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
-              <h3 className="text-xl font-black text-white">Últimas Ventas Completadas</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-white/5 text-neutral-400 text-xs uppercase">
-                    <tr>
-                      <th className="p-3">ID Venta</th>
-                      <th className="p-3">Fecha</th>
-                      <th className="p-3">Medios de Pago</th>
-                      <th className="p-3 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {ventasHistoricas.slice(0, 15).map((v) => (
-                      <tr key={v.id} className="hover:bg-white/5">
-                        <td className="p-3 text-xs font-mono text-purple-400">{v.id.substring(0, 8)}</td>
-                        <td className="p-3 text-xs text-neutral-400">{new Date(v.created_at).toLocaleString('es-AR')}</td>
-                        <td className="p-3 text-xs text-neutral-300">
-                          {v.sale_payments?.map((p: any) => `${p.method}: $${p.amount}`).join(' | ') || 'Efectivo'}
-                        </td>
-                        <td className="p-3 text-right font-black text-emerald-400">${Number(v.total_amount).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VISTA 7: CLIENTES CON DEUDA */}
-        {vistaActual === 'deudas' && (
-          <div className="print:hidden">
-            <ModuloDeudas />
-          </div>
-        )}
-
-        {/* VISTA 8: MÓDULO DE SEÑAS Y PEDIDOS */}
-        {vistaActual === 'senas' && (
-          <div className="print:hidden">
-            <ModuloSenas />
-          </div>
-        )}
-
-        {/* VISTA 9: REPOSICIÓN / PEDIDOS */}
-        {vistaActual === 'reposicion' && (
-          <div className="print:hidden">
-            <ModuloReposicion />
-          </div>
-        )}
-
+          {/* OTRAS VISTAS INTEGRADAS */}
+          {vistaActual === 'proveedores' && <ProveedoresView />}
+          {vistaActual === 'gastos' && <GastosView />}          
+          {vistaActual === 'arqueo' && (
+            <ArqueoView
+              turnoPadre={turnoAbierto}
+              onTurnoCerrado={async () => {
+                setTurnoAbierto(null)
+                await verificarTurnoAbierto()
+              }}
+              onVolverPos={() => setVistaActual('pos')}
+            />
+          )}
+          {vistaActual === 'dashboard' && <DashboardView />}
+          {vistaActual === 'deudas' && <div className="print:hidden"><ModuloDeudas /></div>}
+          {vistaActual === 'senas' && <div className="print:hidden"><ModuloSenas /></div>}
+          {vistaActual === 'reposicion' && <div className="print:hidden"><ModuloReposicion /></div>}
         </div>
 
         {/* MODAL DE PAGOS MÚLTIPLES */}
@@ -1897,30 +1421,6 @@ export default function POS() {
                       Exacto
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[1000, 2000, 5000, 10000, 20000].map((b) => (
-                      <button
-                        key={b}
-                        type="button"
-                        onClick={() => setEfectivoRecibido(String(b))}
-                        className="bg-white/5 hover:bg-white/10 text-neutral-300 text-xs px-2.5 py-1 rounded-lg font-bold border border-white/5"
-                      >
-                        ${b.toLocaleString()}
-                      </button>
-                    ))}
-                  </div>
-                  {Number(efectivoRecibido) > 0 && (
-                    <div className="flex justify-between items-center pt-2 border-t border-emerald-500/20">
-                      <span className="text-xs text-emerald-200 font-bold uppercase">Vuelto a entregar:</span>
-                      <span className={`text-lg font-black ${
-                        (Number(efectivoRecibido) - Number(montoPagoActual || restaPagar)) >= 0
-                          ? 'text-emerald-400'
-                          : 'text-rose-400'
-                      }`}>
-                        ${(Number(efectivoRecibido) - Number(montoPagoActual || restaPagar)).toLocaleString()}
-                      </span>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -1929,7 +1429,7 @@ export default function POS() {
                 <div className="flex gap-2">
                   <select
                     value={metodoPagoActual}
-                    onChange={(e) => setMetodoPagoActual(e.target.value)}
+                    onChange={(e) => cambiarMetodoPagoSelect(e.target.value)}
                     className="bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-white text-sm"
                   >
                     <option value="efectivo">Efectivo</option>
@@ -1978,7 +1478,7 @@ export default function POS() {
           </div>
         )}
 
-        {/* TICKET DE VENTA (IMPRIMIBLE) */}
+        {/* TICKET DE VENTA */}
         {ticketVenta && (
           <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-xl flex items-center justify-center p-4 z-50 print:p-0 print:static print:bg-transparent">
             <div className="bg-white text-black p-6 rounded-3xl max-w-sm w-full font-mono text-xs shadow-2xl print:shadow-none print:w-full print:p-0">
@@ -2074,7 +1574,7 @@ export default function POS() {
                   🖨️ Imprimir Etiquetas
                 </button>
                 <button
-                  onClick={() => z => setEtiquetaProducto(null)}
+                  onClick={() => setEtiquetaProducto(null)}
                   className="flex-1 bg-white/10 text-white font-bold py-2.5 rounded-xl text-xs"
                 >
                   Cerrar
