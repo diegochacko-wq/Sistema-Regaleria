@@ -942,16 +942,53 @@ export default function POS() {
                 </div>
 
                 <form onSubmit={guardarProducto} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="md:col-span-2 space-y-1">
-                    <label className="text-xs font-bold text-neutral-400">Nombre del Producto *</label>
+                  <div className="md:col-span-2 space-y-1 relative">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-bold text-neutral-400">Nombre del Producto *</label>
+                      <span className="text-[10px] text-purple-400 font-bold">Buscá para evitar duplicados</span>
+                    </div>
                     <input
                       type="text"
                       value={nombreProd}
                       onChange={(e) => setNombreProd(e.target.value)}
                       placeholder="Ej: Remera Algodón Talle M"
-                      className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
+                      className="w-full bg-neutral-950/80 border border-purple-500/50 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-400 shadow-lg shadow-purple-950/20"
                       required
                     />
+
+                    {/* SUGERENCIAS / AUTOCOMPLETE FLOTANTE */}
+                    {nombreProd.trim().length > 0 && (
+                      <div className="absolute z-30 left-0 right-0 mt-1 bg-neutral-900 border border-purple-500/40 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl">
+                        <div className="p-2 bg-purple-600/20 border-b border-white/10 text-[10px] font-black text-purple-300 uppercase tracking-wider flex items-center justify-between">
+                          <span>⚡ Coincidencias en Inventario</span>
+                          <span>Clic para editar</span>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto divide-y divide-white/5">
+                          {productos
+                            .filter((p: any) => p.nombre.toLowerCase().includes(nombreProd.trim().toLowerCase()))
+                            .slice(0, 5)
+                            .map((p: any) => (
+                              <div
+                                key={p.id}
+                                onClick={() => seleccionarProductoParaEditar(p)}
+                                className="p-2.5 hover:bg-purple-600/10 cursor-pointer flex items-center justify-between transition-colors group"
+                              >
+                                <div>
+                                  <p className="text-xs font-bold text-white group-hover:text-purple-300 transition-colors">
+                                    {p.nombre}
+                                  </p>
+                                  <p className="text-[10px] text-neutral-400 font-mono mt-0.5">
+                                    SKU: {p.codigo || 'S/C'} • Stock: <span className="text-emerald-400 font-bold">{p.stock} u.</span> • <span className="text-purple-400">${Number(p.precio || 0).toLocaleString('es-AR')}</span>
+                                  </p>
+                                </div>
+                                <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-1 rounded-lg font-black">
+                                  Editar ✏️
+                                </span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1">
