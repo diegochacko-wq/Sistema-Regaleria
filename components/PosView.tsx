@@ -24,6 +24,9 @@ export default function PosView({
   const [tipoDescuento, setTipoDescuento] = useState<'monto' | 'porcentaje'>('porcentaje')
   const [valorDescuento, setValorDescuento] = useState<number>(0)
   
+  // Estado para alertas personalizadas en pantalla (reemplaza alert nativo)
+  const [mensajeAlerta, setMensajeAlerta] = useState<string | null>(null)
+  
   // Lista de pagos parciales/múltiples
   const [pagosParciales, setPagosParciales] = useState<Array<{ metodo: string; monto: number }>>([
     { metodo: 'efectivo', monto: 0 }
@@ -48,6 +51,13 @@ export default function PosView({
       detenerCamara()
     }
   }, [negocioActual?.id])
+
+  const mostrarAvisoTemporal = (msg: string) => {
+    setMensajeAlerta(msg)
+    setTimeout(() => {
+      setMensajeAlerta(null)
+    }, 3500)
+  }
 
   const cargarProductosPos = async () => {
     if (!negocioActual?.id) return
@@ -113,7 +123,7 @@ export default function PosView({
         )
       } catch (err) {
         console.error('Error al iniciar el escáner:', err)
-        alert('No se pudo acceder a la cámara.')
+        mostrarAvisoTemporal('No se pudo acceder a la cámara.')
         setCamaraActiva(false)
       }
     }, 150)
@@ -144,7 +154,7 @@ export default function PosView({
 
   const agregarAlCarrito = (producto: any) => {
     if (producto.stock <= 0) {
-      alert('⚠️ Este producto no tiene stock disponible.')
+      mostrarAvisoTemporal('⚠️ Este producto no tiene stock disponible.')
       return
     }
     setCarrito((prev) => {
@@ -152,7 +162,7 @@ export default function PosView({
       if (index >= 0) {
         const nuevo = [...prev]
         if (nuevo[index].cantidad + 1 > producto.stock) {
-          alert('No podés agregar más cantidad que el stock disponible.')
+          mostrarAvisoTemporal('No podés agregar más cantidad que el stock disponible.')
           return prev
         }
         nuevo[index].cantidad += 1
@@ -182,17 +192,15 @@ export default function PosView({
 
   const subtotalCarrito = carrito.reduce((acc, item) => acc + item.precio * item.cantidad, 0)
 
-  // Cálculo de Descuento
   const montoDescuento = tipoDescuento === 'porcentaje' 
     ? (subtotalCarrito * (valorDescuento || 0)) / 100 
     : (valorDescuento || 0)
 
   const totalConDescuento = Math.max(0, subtotalCarrito - montoDescuento)
 
-  // Calcular recargos según los métodos elegidos en los pagos parciales
   const calcularRecargoMetodo = (metodo: string, montoBase: number) => {
-    if (metodo === 'tarjeta_debito' || metodo === 'debito') return montoBase * 0.02; // 2% recargo
-    if (metodo === 'tarjeta_credito' || metodo === 'credito') return montoBase * 0.06; // 6% recargo
+    if (metodo === 'tarjeta_debito' || metodo === 'debito') return montoBase * 0.02; 
+    if (metodo === 'tarjeta_credito' || metodo === 'credito') return montoBase * 0.06; 
     return 0;
   }
 
@@ -204,7 +212,6 @@ export default function PosView({
   const totalSumaPagos = pagosParciales.reduce((acc, p) => acc + p.monto, 0)
   const restaParaCompletar = totalConDescuento - totalSumaPagos
 
-  // Sincronizar el monto inicial si hay un solo pago por defecto
   useEffect(() => {
     if (pagosParciales.length === 1) {
       setPagosParciales([{ ...pagosParciales[0], monto: totalConDescuento }])
@@ -238,12 +245,12 @@ export default function PosView({
   const finalizarVenta = async () => {
     if (carrito.length === 0) return
     if (!turnoAbierto?.id) {
-      alert('No hay un turno de caja abierto.')
+      mostrarAvisoTemporal('No hay un turno de caja abierto.')
       return
     }
 
     if (Math.abs(totalSumaPagos - totalConDescuento) > 1) {
-      alert('⚠️ La suma de los pagos parciales no coincide con el total de la venta con descuento.')
+      mostrarAvisoTemporal('⚠️ La suma de los pagos parciales no coincide con el total de la venta.')
       return
     }
 
@@ -251,13 +258,12 @@ export default function PosView({
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        alert('No hay una sesión de usuario activa.')
+        mostrarAvisoTemporal('No hay una sesión de usuario activa.')
         setProcesando(false)
         return
       }
 
       let nombreNegocioTicket = 'Comercio'
-      
       const { data: negocioData } = await supabase
         .from('negocios')
         .select('*')
@@ -338,14 +344,22 @@ export default function PosView({
       cargarProductosPos()
       onVentaCompletada()
     } catch (err: any) {
-      alert(`Error al procesar la venta: ${err.message}`)
+      mostrarAvisoTemporal(`Error al procesar la venta: ${err.message}`)
     } finally {
       setProcesando(false)
     }
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative">
+      {/* Notificación flotante estética en lugar de alert nativo */}
+      {mensajeAlerta && (
+        <div className="fixed top-5 left-1/2 transform -translate-x-1/2 z-50 bg-neutral-900 border border-purple-500/50 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce">
+          <span className="text-base">🔔</span>
+          <p className="text-xs font-bold">{mensajeAlerta}</p>
+        </div>
+      )}
+
       {/* Modal para Imprimir Ticket */}
       {mostrarModalTicket && ultimaVenta && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -353,7 +367,6 @@ export default function PosView({
             <h3 className="text-base font-black text-white mb-1">¡Venta Exitosa! 🎉</h3>
             <p className="text-xs text-neutral-400 mb-4">¿Deseás imprimir el comprobante?</p>
 
-            {/* Vista Previa del Ticket */}
             <div id="ticket-impresion" className="w-full bg-white text-black p-4 rounded-xl font-mono text-xs space-y-2 shadow-inner">
               <div className="text-center font-bold border-b border-dashed border-neutral-400 pb-2">
                 <p className="text-sm uppercase">{ultimaVenta.negocio}</p>
@@ -525,7 +538,7 @@ export default function PosView({
           </div>
         </div>
 
-        {/* Panel Derecho: Carrito, Descuentos, Pagos Múltiples y Recargos */}
+        {/* Panel Derecho: Carrito y Pagos */}
         <div className="bg-neutral-900/80 border border-white/10 rounded-3xl p-5 flex flex-col justify-between backdrop-blur-xl shadow-2xl">
           <div>
             <h3 className="text-lg font-black text-white border-b border-white/10 pb-3 mb-3">🛒 Ticket Actual</h3>
@@ -579,7 +592,7 @@ export default function PosView({
               </div>
             )}
 
-            {/* SECCIÓN PAGOS PARCIALES / MÚLTIPLES */}
+            {/* SECCIÓN PAGOS PARCIALES */}
             {carrito.length > 0 && (
               <div className="mt-4 pt-3 border-t border-white/10 space-y-2">
                 <div className="flex justify-between items-center text-xs font-bold text-neutral-400">
@@ -626,7 +639,6 @@ export default function PosView({
                   })}
                 </div>
 
-                {/* Advertencia de saldo restante */}
                 {Math.abs(restaParaCompletar) > 1 && (
                   <p className="text-[10px] text-amber-400 font-medium">
                     ⚠️ Restan cubrir: ${restaParaCompletar.toLocaleString()}
