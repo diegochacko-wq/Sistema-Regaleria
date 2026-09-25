@@ -783,39 +783,20 @@ export default function POS() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-purple-500 selection:text-white pb-28 md:pb-6">
-      {/* HEADER PRINCIPAL */}
+      {/* HEADER PRINCIPAL - Limpio solo con el selector y las pestañas */}
       <header className="sticky top-0 z-40 bg-neutral-900/80 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-3 print:hidden">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center justify-between w-full md:w-auto">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 bg-gradient-to-tr from-purple-600 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30">
-                <span className="text-xl">🏪</span>
-              </div>
-              <div>
-                <h1 className="text-lg font-black tracking-wider text-white">TONEXOR</h1>
-                <p className="text-xs text-neutral-400">Control Comercial y Caja Transaccional</p>
-              </div>
-            </div>
+          <div className="w-full md:w-auto">
+            {/* Se removió el bloque izquierdo fijo de Tonexor */}
           </div>
 
-          <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-3">
+          <div className="flex items-center justify-end w-full md:w-auto gap-3">
             <SelectorNegocio />
-            {turnoAbierto ? (
-              <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl shrink-0">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span className="text-xs font-bold text-emerald-400">Caja Abierta</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-xl shrink-0">
-                <span className="h-2 w-2 rounded-full bg-rose-400"></span>
-                <span className="text-xs font-bold text-rose-400">Caja Cerrada</span>
-              </div>
-            )}
           </div>
         </div>
 
         {/* BARRA DE NAVEGACIÓN PC/TABLET */}
-        <div className="hidden md:flex max-w-7xl mx-auto gap-2 mt-4 overflow-x-auto pb-2 scrollbar-none">
+        <div className="hidden md:flex max-w-7xl mx-auto gap-2 mt-2 overflow-x-auto pb-2 scrollbar-none">
           {[
             { id: 'pos', label: '🛒 POS / Ventas' },
             { id: 'inventario', label: '📦 Inventario' },
