@@ -17,6 +17,9 @@ export default function ModuloSenas() {
   const [busquedaProducto, setBusquedaProducto] = useState('')
   const [mostrarDropdown, setMostrarDropdown] = useState(false)
 
+  // Estado para la alerta flotante de éxito
+  const [mensajeExito, setMensajeExito] = useState(null)
+
   // Fechas automáticas
   const obtenerFechaActual = () => new Date().toISOString().split('T')[0]
   const calcularVencimiento = (fechaBase) => {
@@ -31,6 +34,13 @@ export default function ModuloSenas() {
   const handleCambioFechaSena = (nuevaFecha) => {
     setFechaSena(nuevaFecha)
     setFechaVencimiento(calcularVencimiento(nuevaFecha))
+  }
+
+  const mostrarAvisoExito = (msg) => {
+    setMensajeExito(msg)
+    setTimeout(() => {
+      setMensajeExito(null)
+    }, 3500)
   }
 
   const fetchData = async () => {
@@ -92,7 +102,6 @@ export default function ModuloSenas() {
     const senaNum = parseFloat(montoSena) || 0
     const totalNum = parseFloat(montoTotal) || 0
 
-    // Se eliminó 'resta_abonar' del objeto insertado para evitar el error de esquema
     const { error } = await supabase
       .from('senas')
       .insert([{
@@ -118,6 +127,7 @@ export default function ModuloSenas() {
       setBusquedaProducto('')
       setFechaSena(obtenerFechaActual())
       setFechaVencimiento(calcularVencimiento(obtenerFechaActual()))
+      mostrarAvisoExito('✅ ¡Seña registrada con éxito!')
       fetchData()
     }
   }
@@ -128,14 +138,28 @@ export default function ModuloSenas() {
       alert('No se pudo actualizar la seña: ' + error.message)
       return
     }
+    mostrarAvisoExito(`🔄 Seña actualizada a: ${nuevoEstado}`)
     fetchData()
   }
 
   const calculoRestaForm = Math.max(0, (parseFloat(montoTotal) || 0) - (parseFloat(montoSena) || 0))
 
   return (
-    <div style={{ padding: '16px', background: 'transparent', minHeight: '100vh', color: '#f8fafc', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ padding: '16px', background: 'transparent', minHeight: '100vh', color: '#f8fafc', fontFamily: 'Inter, sans-serif', position: 'relative' }}>
       
+      {/* Notificación flotante de éxito */}
+      {mensajeExito && (
+        <div style={{
+          position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 50, background: '#09090b', border: '1px solid rgba(34, 197, 94, 0.5)',
+          color: '#ffffff', padding: '12px 20px', borderRadius: '16px',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', gap: '10px',
+          fontSize: '13px', fontWeight: 'bold'
+        }}>
+          <span>{mensajeExito}</span>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#fff' }}>Módulo de Señas</h2>
