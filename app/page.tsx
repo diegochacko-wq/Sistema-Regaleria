@@ -957,7 +957,7 @@ export default function POS() {
                     />
 
                     {/* SUGERENCIAS / AUTOCOMPLETE FLOTANTE */}
-                    {nombreProd.trim().length > 0 && (
+                    {!productoAEditar && nombreProd.trim().length > 0 && (
                       <div className="absolute z-30 left-0 right-0 mt-1 bg-neutral-900 border border-purple-500/40 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl">
                         <div className="p-2 bg-purple-600/20 border-b border-white/10 text-[10px] font-black text-purple-300 uppercase tracking-wider flex items-center justify-between">
                           <span>⚡ Coincidencias en Inventario</span>

@@ -103,6 +103,14 @@ export default function InventoryView({
     }
   }, [productoAEditar])
 
+  // Cerrar el desplegable de "Coincidencias en Inventario" apenas se entra en modo edición,
+  // sin importar si se disparó desde una sugerencia, la tabla de abajo, o un código escaneado.
+  useEffect(() => {
+    if (productoAEditar) {
+      setMostrarSugerenciasNombre(false)
+    }
+  }, [productoAEditar])
+
   // Sonido de confirmación con Web Audio API
   const emitirBeepConfirmacion = () => {
     try {
