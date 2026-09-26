@@ -135,6 +135,7 @@ export default function InventoryView({
     )
 
     if (productoExistente) {
+      setMostrarSugerenciasNombre(false) // Forzar cierre de sugerencias
       cargarProductoEnFormulario(productoExistente)
       setModoEscaneo('actualizar')
       setMensajeAlerta(`Producto encontrado: "${productoExistente.name}". Modo actualización rápido activado.`)
@@ -240,23 +241,24 @@ export default function InventoryView({
     setModoEscaneo('idle')
     setMensajeAlerta(null)
     setCantidadASumar('')
+    setMostrarSugerenciasNombre(false)
     if (inputSkuRef.current) {
       inputSkuRef.current.focus()
     }
   }
 
-  // Filtrar productos para el autocompletado del nombre
-  const productosFiltradosPorNombre = nombreProd && nombreProd.trim().length > 0 && productosInventario
+  // Filtrar productos para el autocompletado del nombre (solo si no estamos editando)
+  const productosFiltradosPorNombre = !productoAEditar && nombreProd && nombreProd.trim().length > 0 && productosInventario
     ? productosInventario.filter((p: any) => 
         p.name && p.name.toLowerCase().includes(nombreProd.trim().toLowerCase())
       ).slice(0, 5)
     : []
 
   const seleccionarProductoDeSugerencia = (prod: any) => {
+    setMostrarSugerenciasNombre(false)
     cargarProductoEnFormulario(prod)
     setModoEscaneo('actualizar')
     setMensajeAlerta(`Editando producto seleccionado: "${prod.name}".`)
-    setMostrarSugerenciasNombre(false)
     if (inputStockRef.current) {
       inputStockRef.current.focus()
     }
@@ -385,7 +387,7 @@ export default function InventoryView({
             </div>
           </div>
 
-          {/* NOMBRE CON BUSCADOR / AUTOCOMPLETE FLOTANTE (Solo se muestra al crear productos nuevos) */}
+          {/* NOMBRE CON BUSCADOR / AUTOCOMPLETE FLOTANTE (Bloqueado al editar) */}
           <div className="space-y-1 relative" ref={containerNombreRef}>
             <div className="flex justify-between items-center">
               <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
@@ -402,16 +404,20 @@ export default function InventoryView({
               value={nombreProd}
               onChange={(e) => {
                 setNombreProd(e.target.value)
-                if (!productoAEditar) setMostrarSugerenciasNombre(true)
+                if (!productoAEditar) {
+                  setMostrarSugerenciasNombre(true)
+                }
               }}
               onFocus={() => {
-                if (!productoAEditar) setMostrarSugerenciasNombre(true)
+                if (!productoAEditar) {
+                  setMostrarSugerenciasNombre(true)
+                }
               }}
               className="w-full bg-neutral-950 border border-violet-500/50 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-400 shadow-lg shadow-violet-950/20"
               required
             />
 
-            {/* DROPDOWN FLOTANTE ABSOLUTO (Bloqueado si productoAEditar está activo) */}
+            {/* DROPDOWN FLOTANTE ABSOLUTO (Garantizado que no se muestra si productoAEditar está activo) */}
             {!productoAEditar && mostrarSugerenciasNombre && productosFiltradosPorNombre.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-neutral-900/95 border border-violet-500/40 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-2xl">
                 <div className="p-2.5 bg-violet-600/20 border-b border-white/10 text-[10px] font-black text-violet-300 uppercase tracking-wider flex items-center justify-between">
@@ -703,7 +709,10 @@ export default function InventoryView({
                           </button>
                           <button
                             type="button"
-                            onClick={() => cargarProductoEnFormulario(p)}
+                            onClick={() => {
+                              setMostrarSugerenciasNombre(false)
+                              cargarProductoEnFormulario(p)
+                            }}
                             className="px-2.5 py-1 bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 rounded-lg text-[10px] font-bold border border-violet-500/20 transition-all"
                           >
                             ✏️ Editar
