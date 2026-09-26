@@ -385,7 +385,7 @@ export default function InventoryView({
             </div>
           </div>
 
-          {/* NOMBRE CON BUSCADOR / AUTOCOMPLETE INTEGRADO */}
+          {/* NOMBRE CON BUSCADOR / AUTOCOMPLETE FLOTANTE */}
           <div className="space-y-1 relative" ref={containerNombreRef}>
             <div className="flex justify-between items-center">
               <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
@@ -407,9 +407,9 @@ export default function InventoryView({
               required
             />
 
-            {/* DROPDOWN DE SUGERENCIAS DE PRODUCTOS EXISTENTES */}
+            {/* DROPDOWN FLOTANTE ABSOLUTO */}
             {mostrarSugerenciasNombre && productosFiltradosPorNombre.length > 0 && (
-              <div className="absolute z-30 left-0 right-0 mt-1 bg-neutral-900 border border-violet-500/40 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl">
+              <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-neutral-900/95 border border-violet-500/40 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-2xl">
                 <div className="p-2.5 bg-violet-600/20 border-b border-white/10 text-[10px] font-black text-violet-300 uppercase tracking-wider flex items-center justify-between">
                   <span>⚡ Coincidencias en Inventario</span>
                   <span>Clic para editar</span>
