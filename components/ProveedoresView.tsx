@@ -15,15 +15,14 @@ interface ProveedorData {
 }
 
 interface ProveedoresViewProps {
-  proveedoresData: ProveedorData[];
+  proveedoresData?: ProveedorData[]; // Opcional para evitar errores en app/page.tsx
 }
 
 export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresData = [] }) => {
   const [proveedorSeleccionado, setProveedorSeleccionado] = useState<string>('TODOS');
   const [tipoInforme, setTipoInforme] = useState<'completo' | 'rapido'>('completo');
 
-  // Cálculos globales
-  const totalProveedoresCount = proveedoresData.length;
+  // Cálculos globales seguros
   const inversionGlobalCosto = proveedoresData.reduce((acc, p) => acc + (p.totalInvertido || 0), 0);
   const valorGlobalVenta = proveedoresData.reduce((acc, p) => acc + ((p.totalInvertido || 0) + (p.totalGanancia || 0)), 0);
 
