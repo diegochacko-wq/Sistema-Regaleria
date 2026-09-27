@@ -15,10 +15,10 @@ interface ProveedorData {
 }
 
 interface ProveedoresViewProps {
-  proveedoresData: ProveedorData[];
+  proveedoresData?: ProveedorData[];
 }
 
-export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresData }) => {
+export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresData = [] }) => {
   const [proveedorSeleccionado, setProveedorSeleccionado] = useState<string>('TODOS');
   const [tipoInforme, setTipoInforme] = useState<'completo' | 'rapido'>('completo');
 
