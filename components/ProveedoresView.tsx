@@ -15,167 +15,126 @@ interface ProveedorData {
 }
 
 interface ProveedoresViewProps {
-  proveedoresData?: ProveedorData[];
+  proveedoresData: ProveedorData[];
 }
 
 export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresData = [] }) => {
   const [proveedorSeleccionado, setProveedorSeleccionado] = useState<string>('TODOS');
   const [tipoInforme, setTipoInforme] = useState<'completo' | 'rapido'>('completo');
 
-  const datosFiltrados =
-    proveedorSeleccionado === 'TODOS'
-      ? proveedoresData
-      : proveedoresData.filter((p) => p.nombre === proveedorSeleccionado);
+  // Cálculos globales
+  const totalProveedoresCount = proveedoresData.length;
+  const inversionGlobalCosto = proveedoresData.reduce((acc, p) => acc + (p.totalInvertido || 0), 0);
+  const valorGlobalVenta = proveedoresData.reduce((acc, p) => acc + ((p.totalInvertido || 0) + (p.totalGanancia || 0)), 0);
 
-  const escaparHTML = (valor: unknown) =>
-    String(valor ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+  // Función para exportar a Excel (CSV)
+  const exportarExcel = () => {
+    let contenido = "data:text/csv;charset=utf-8,";
+    contenido += "Proveedor,Producto,Cantidad,Costo,Venta,Total Invertido,Total Ganancia\n";
+    
+    const datosFiltrados = proveedorSeleccionado === 'TODOS' 
+      ? proveedoresData 
+      : proveedoresData.filter(p => p.nombre === proveedorSeleccionado);
 
-  const generarHTMLInforme = () => {
-    let htmlContent = `
-      <html>
-        <head>
-          <meta charset="UTF-8" />
-          <title>Informe de Proveedores</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 30px; color: #222; }
-            h1 { margin-bottom: 6px; }
-            h2 { margin-top: 28px; margin-bottom: 8px; }
-            p { margin: 5px 0 12px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            th, td { border: 1px solid #999; padding: 7px; text-align: left; }
-            th { background: #eeeeee; }
-            .totales { margin: 10px 0 14px; font-weight: bold; }
-            .separador { margin: 25px 0; border-top: 1px solid #bbb; }
-          </style>
-        </head>
-        <body>
-          <h1>Informe de Proveedores - ${tipoInforme === 'completo' ? 'Completo' : 'Rápido'}</h1>
-          <p>Proveedor: <strong>${escaparHTML(proveedorSeleccionado === 'TODOS' ? 'Todos los proveedores' : proveedorSeleccionado)}</strong></p>
-    `;
-
-    datosFiltrados.forEach((prov) => {
-      htmlContent += `
-        <h2>${escaparHTML(prov.nombre)}</h2>
-        <div class="totales">
-          Total invertido: $${Number(prov.totalInvertido || 0).toFixed(2)}
-          &nbsp;&nbsp;|&nbsp;&nbsp;
-          Ganancia esperada: $${Number(prov.totalGanancia || 0).toFixed(2)}
-        </div>
-      `;
-
+    datosFiltrados.forEach(prov => {
       if (tipoInforme === 'completo') {
-        htmlContent += `
-          <table>
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th>Cantidad</th>
-                <th>Precio de costo</th>
-                <th>Precio de venta</th>
-              </tr>
-            </thead>
-            <tbody>
-        `;
-
-        prov.productos.forEach((prod) => {
-          htmlContent += `
-            <tr>
-              <td>${escaparHTML(prod.nombre)}</td>
-              <td>${prod.stock}</td>
-              <td>$${Number(prod.costo || 0).toFixed(2)}</td>
-              <td>$${Number(prod.precio || 0).toFixed(2)}</td>
-            </tr>
-          `;
+        prov.productos?.forEach((prod) => {
+          contenido += `"${prov.nombre}","${prod.nombre}",${prod.stock},${prod.costo},${prod.precio},, \n`;
         });
-
-        htmlContent += `
-            </tbody>
-          </table>
-        `;
+      } else {
+        contenido += `"${prov.nombre}","-","-","-","-",${prov.totalInvertido},${prov.totalGanancia}\n`;
       }
-
-      htmlContent += `<div class="separador"></div>`;
     });
 
-    if (datosFiltrados.length === 0) {
-      htmlContent += `<p>No hay datos disponibles para el proveedor seleccionado.</p>`;
-    }
+    const encodedUri = encodeURI(contenido);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `informe_proveedores_${tipoInforme}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Función para exportar a Word (.doc)
+  const exportarWord = () => {
+    const datosFiltrados = proveedorSeleccionado === 'TODOS' 
+      ? proveedoresData 
+      : proveedoresData.filter(p => p.nombre === proveedorSeleccionado);
+
+    let htmlContent = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/1999/xhtml"><body>`;
+    htmlContent += `<h1>Informe de Proveedores - ${tipoInforme === 'completo' ? 'Completo' : 'Rápido'}</h1>`;
+    
+    datosFiltrados.forEach(prov => {
+      htmlContent += `<h2>Proveedor: ${prov.nombre}</h2>`;
+      htmlContent += `<p><strong>Total Invertido:</strong> $${prov.totalInvertido} | <strong>Ganancia Esperada:</strong> $${prov.totalGanancia}</p>`;
+      
+      if (tipoInforme === 'completo') {
+        htmlContent += `<table border="1" cellspacing="0" cellpadding="5">`;
+        htmlContent += `<tr><th>Producto</th><th>Stock</th><th>Costo</th><th>Venta</th></tr>`;
+        prov.productos?.forEach((prod) => {
+          htmlContent += `<tr><td>${prod.nombre}</td><td>${prod.stock}</td><td>$${prod.costo}</td><td>$${prod.precio}</td></tr>`;
+        });
+        htmlContent += `</table><br/>`;
+      }
+      htmlContent += `<hr/>`;
+    });
 
     htmlContent += `</body></html>`;
-    return htmlContent;
-  };
-
-  // Exportación compatible con Excel (.xls).
-  // No requiere instalar librerías adicionales en el proyecto.
-  const exportarExcel = () => {
-    const htmlContent = generarHTMLInforme();
-    const blob = new Blob([htmlContent], {
-      type: 'application/vnd.ms-excel;charset=utf-8;'
-    });
+    const blob = new Blob(['\ufeff' + htmlContent], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `informe_proveedor_${proveedorSeleccionado}_${tipoInforme}.xls`;
+    link.download = `informe_proveedores_${tipoInforme}.doc`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
-  // Exportación a Word (.doc).
-  const exportarWord = () => {
-    const htmlContent = generarHTMLInforme();
-    const blob = new Blob(['\ufeff' + htmlContent], {
-      type: 'application/msword'
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `informe_proveedor_${proveedorSeleccionado}_${tipoInforme}.doc`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  // Genera una ventana exclusiva para el informe seleccionado y desde allí permite
-  // guardarlo como PDF, evitando imprimir toda la aplicación.
+  // Función para exportar a PDF / Impresión
   const exportarPDF = () => {
-    const ventana = window.open('', '_blank', 'width=1000,height=800');
-
-    if (!ventana) {
-      alert('El navegador bloqueó la ventana de impresión. Permití las ventanas emergentes para exportar el PDF.');
-      return;
-    }
-
-    ventana.document.open();
-    ventana.document.write(generarHTMLInforme());
-    ventana.document.close();
-
-    ventana.onload = () => {
-      ventana.focus();
-      ventana.print();
-    };
+    window.print();
   };
+
+  const datosFiltrados = proveedorSeleccionado === 'TODOS' 
+    ? proveedoresData 
+    : proveedoresData.filter(p => p.nombre === proveedorSeleccionado);
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <h1 className="text-2xl font-bold mb-4 text-gray-800">Gestión de Proveedores e Informes</h1>
-
-      {/* Controles de selección y exportación */}
-      <div className="flex flex-wrap gap-4 mb-6 p-4 bg-white rounded-lg shadow items-center justify-between">
-        <div className="flex flex-wrap gap-3 items-center">
+    <div className="p-6 bg-[#121212] min-h-screen text-white">
+      {/* Cabecera y Barra de Filtros / Exportación */}
+      <div className="max-w-4xl mx-auto mb-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">PROVEEDOR:</label>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <span>🚚</span> Resumen y Catálogo por Proveedor
+            </h1>
+            <p className="text-gray-400 text-sm mt-1">
+              Totales acumulados de stock, inversión en costo y valor proyectado de venta por proveedor
+            </p>
+          </div>
+
+          {/* Botones de Exportación */}
+          <div className="flex gap-2">
+            <button onClick={exportarExcel} className="bg-green-700 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+              Excel
+            </button>
+            <button onClick={exportarWord} className="bg-blue-700 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+              Word
+            </button>
+            <button onClick={exportarPDF} className="bg-red-700 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+              PDF
+            </button>
+          </div>
+        </div>
+
+        {/* Tarjeta Global con Filtros */}
+        <div className="bg-[#1A1A1A] border border-gray-800 rounded-2xl p-5 mb-6 shadow-lg grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wider">Filtrar Proveedor:</label>
             <select 
               value={proveedorSeleccionado} 
               onChange={(e) => setProveedorSeleccionado(e.target.value)}
-              className="border border-gray-300 rounded p-2 text-sm bg-white"
+              className="w-full bg-[#262626] border border-gray-700 text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-purple-500"
             >
               <option value="TODOS">Todos los proveedores</option>
               {proveedoresData.map((p, idx) => (
@@ -185,73 +144,90 @@ export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresDat
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">TIPO DE INFORME:</label>
-            <select 
-              value={tipoInforme} 
-              onChange={(e) => setTipoInforme(e.target.value as 'completo' | 'rapido')}
-              className="border border-gray-300 rounded p-2 text-sm bg-white"
-            >
-              <option value="completo">Informe Completo (con artículos)</option>
-              <option value="rapido">Informe Rápido (solo totales)</option>
-            </select>
+            <span className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Inversión Global (Costo):</span>
+            <span className="text-xl font-bold text-amber-400">
+              ${inversionGlobalCosto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+            </span>
           </div>
-        </div>
 
-        <div className="flex gap-2 mt-4 md:mt-0">
-          <button onClick={exportarExcel} className="bg-green-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-green-700 transition">
-            Exportar Excel
-          </button>
-          <button onClick={exportarWord} className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 transition">
-            Exportar Word
-          </button>
-          <button onClick={exportarPDF} className="bg-red-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-red-700 transition">
-            Exportar PDF
-          </button>
+          <div>
+            <span className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Valor Global (Venta):</span>
+            <span className="text-xl font-bold text-emerald-400">
+              ${valorGlobalVenta.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Visualización de los datos en pantalla */}
-      <div className="grid gap-6">
-        {(proveedorSeleccionado === 'TODOS' 
-          ? proveedoresData 
-          : proveedoresData.filter(p => p.nombre === proveedorSeleccionado)
-        ).map((prov, index) => (
-          <div key={index} className="bg-white p-5 rounded-lg shadow border border-gray-200">
-            <div className="flex justify-between items-center border-b pb-3 mb-3">
-              <h2 className="text-lg font-bold text-gray-800">{prov.nombre}</h2>
-              <div className="text-right text-sm">
-                <span className="mr-4 text-gray-600">Invertido: <strong className="text-gray-900">${prov.totalInvertido}</strong></span>
-                <span className="text-green-600">Ganancia Esperada: <strong>${prov.totalGanancia}</strong></span>
-              </div>
-            </div>
+      {/* Listado de Proveedores en Estilo Tarjeta Oscura */}
+      <div className="max-w-4xl mx-auto space-y-6">
+        {datosFiltrados.map((prov, index) => {
+          const stockTotalProv = prov.productos?.reduce((acc, p) => acc + (p.stock || 0), 0) || 0;
+          const valorVentaProv = prov.productos?.reduce((acc, p) => acc + ((p.precio || 0) * (p.stock || 0)), 0) || prov.totalInvertido + prov.totalGanancia;
 
-            {tipoInforme === 'completo' && prov.productos && prov.productos.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-gray-600">
-                  <thead className="bg-gray-100 text-gray-700 uppercase text-xs">
-                    <tr>
-                      <th className="p-2">Producto</th>
-                      <th className="p-2">Stock</th>
-                      <th className="p-2">Costo</th>
-                      <th className="p-2">Precio Venta</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {prov.productos.map((prod, pIdx) => (
-                      <tr key={pIdx} className="border-b hover:bg-gray-50">
-                        <td className="p-2 font-medium text-gray-900">{prod.nombre}</td>
-                        <td className="p-2">{prod.stock}</td>
-                        <td className="p-2">${prod.costo}</td>
-                        <td className="p-2">${prod.precio}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          return (
+            <div key={index} className="bg-[#1A1A1A] border border-gray-800 rounded-2xl p-6 shadow-xl">
+              {/* Cabecera de Proveedor */}
+              <div className="flex justify-between items-center border-b border-gray-800 pb-4 mb-4">
+                <h2 className="text-xl font-black tracking-wide text-white uppercase">{prov.nombre}</h2>
+                <span className="bg-[#2A2235] text-purple-300 border border-purple-900/50 text-xs font-bold px-3 py-1 rounded-full">
+                  {prov.productos?.length || 0} artículos
+                </span>
               </div>
-            )}
-          </div>
-        ))}
+
+              {/* Grid de Métricas del Proveedor */}
+              <div className="grid grid-cols-2 gap-4 bg-[#212121] p-4 rounded-xl border border-gray-800/60 mb-6">
+                <div>
+                  <span className="text-xs text-gray-400 block mb-0.5">Stock Total:</span>
+                  <span className="text-base font-bold text-white">{stockTotalProv} un.</span>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-400 block mb-0.5">Ganancia Proy.:</span>
+                  <span className="text-base font-bold text-emerald-400">
+                    ${(prov.totalGanancia || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-400 block mb-0.5">Inversión (Costo):</span>
+                  <span className="text-base font-bold text-white">
+                    ${(prov.totalInvertido || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-400 block mb-0.5">Valor de Venta:</span>
+                  <span className="text-base font-bold text-emerald-400">
+                    ${valorVentaProv.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Detalle de Productos */}
+              {prov.productos && prov.productos.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Detalle de Productos:</h3>
+                  <div className="space-y-2">
+                    {prov.productos.map((prod, pIdx) => (
+                      <div key={pIdx} className="bg-[#212121] border border-gray-800/50 p-3 rounded-xl flex justify-between items-center text-sm">
+                        <div>
+                          <p className="font-semibold text-white">{prod.nombre}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            Costo: ${prod.costo} <span className="text-gray-600">|</span> Venta: ${prod.precio}
+                          </p>
+                        </div>
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${prod.stock > 0 ? 'bg-[#1E2923] text-emerald-400 border border-emerald-900/30' : 'bg-[#2E1F23] text-rose-400 border border-rose-900/30'}`}>
+                          {prod.stock} un.
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 };
+
+export default ProveedoresView;
