@@ -9,7 +9,7 @@ import SelectorNegocio from "@/components/SelectorNegocio"
 import ModuloDeudas from '../components/ModuloDeudas'
 import ModuloSenas from '../components/ModuloSenas'
 import GastosView from '@/components/GastosView'
-import ProveedoresView from '@/components/ProveedoresView'
+import { ProveedoresView } from '@/components/ProveedoresView'
 import DashboardView from '@/components/DashboardView'
 import ArqueoView from '@/components/ArqueoView'
 import PosView from '@/components/PosView'
