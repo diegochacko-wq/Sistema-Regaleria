@@ -9,186 +9,167 @@ export default function GastosView() {
   const { negocioActual } = useNegocio()
   const { notificar } = useNotificaciones()
 
+  const [gastos, setGastos] = useState<any[]>([])
+  const [cargando, setCargando] = useState(true)
+  const [descripcion, setDescripcion] = useState('')
   const [monto, setMonto] = useState('')
   const [categoria, setCategoria] = useState('General')
-  const [descripcion, setDescripcion] = useState('')
-  const [gastos, setGastos] = useState<any[]>([])
-  const [cargando, setCargando] = useState(false)
-
-  const negocioId = negocioActual?.id
+  const [guardando, setGuardando] = useState(false)
 
   useEffect(() => {
-    if (negocioId) {
+    if (negocioActual?.id) {
       cargarGastos()
     }
-  }, [negocioId])
+  }, [negocioActual?.id])
 
   const cargarGastos = async () => {
-    if (!negocioId) return
+    if (!negocioActual?.id) return
+    setCargando(true)
     try {
       const { data, error } = await supabase
         .from('cash_movements')
         .select('*')
-        .eq('negocio_id', negocioId)
+        .eq('negocio_id', negocioActual.id)
         .eq('type', 'egreso')
         .order('created_at', { ascending: false })
-        .limit(20)
 
       if (error) throw error
       setGastos(data || [])
     } catch (err: any) {
-      console.error('Error al cargar historial de gastos:', err)
-    }
-  }
-
-  const registrarGasto = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!negocioId) return
-
-    const montoNum = parseFloat(monto)
-    if (!monto || isNaN(montoNum) || montoNum <= 0) {
-      notificar('aviso', 'Por favor ingresá un monto válido mayor a 0.')
-      return
-    }
-
-    setCargando(true)
-
-    try {
-      // 1. Obtener el turno abierto de la caja actual
-      const { data: turno, error: turnoErr } = await supabase
-        .from('cash_shifts')
-        .select('id')
-        .eq('negocio_id', negocioId)
-        .eq('status', 'abierta')
-        .limit(1)
-        .maybeSingle()
-
-      if (turnoErr || !turno?.id) {
-        notificar('error', 'No hay ningún turno de caja abierto para registrar egresos.', 'Caja cerrada')
-        setCargando(false)
-        return
-      }
-
-      // 2. Insertar el egreso en cash_movements
-      const { error } = await supabase.from('cash_movements').insert([
-        {
-          negocio_id: negocioId,
-          shift_id: turno.id,
-          type: 'egreso',
-          amount: montoNum,
-          description: descripcion.trim() ? `${categoria}: ${descripcion.trim()}` : categoria,
-          method: 'efectivo'
-        }
-      ])
-
-      if (error) throw error
-
-      // Notificación flotante estética
-      notificar('exito', 'Gasto registrado con éxito!')
-
-      setMonto('')
-      setDescripcion('')
-      setCategoria('General')
-      await cargarGastos()
-    } catch (err: any) {
-      notificar('error', err.message || 'No se pudo guardar el gasto.', 'Error')
+      console.error('Error al cargar gastos:', err)
+      notificar('error', 'No se pudieron cargar los gastos', 'Error')
     } finally {
       setCargando(false)
     }
   }
 
-  if (!negocioActual) {
-    return (
-      <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-6 shadow-xl backdrop-blur-md text-center py-12">
-        <p className="text-neutral-400 font-medium">Seleccioná un negocio para ver y registrar gastos.</p>
-      </div>
-    )
+  const registrarGasto = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!negocioActual?.id) return
+
+    const montoNum = parseFloat(monto)
+    if (!descripcion.trim() || isNaN(montoNum) || montoNum <= 0) {
+      notificar('error', 'Ingresá una descripción y un monto válido', 'Gastos')
+      return
+    }
+
+    setGuardando(true)
+    try {
+      const { error } = await supabase.from('cash_movements').insert({
+        negocio_id: negocioActual.id,
+        type: 'egreso',
+        amount: montoNum,
+        description: descripcion.trim(),
+        category: categoria,
+        created_at: new Date().toISOString()
+      })
+
+      if (error) throw error
+
+      notificar('exito', 'Gasto registrado correctamente', 'Gastos')
+      setDescripcion('')
+      setMonto('')
+      cargarGastos()
+    } catch (err: any) {
+      console.error('Error al registrar gasto:', err)
+      notificar('error', err.message || 'Error al registrar el gasto', 'Error')
+    } finally {
+      setGuardando(false)
+    }
   }
 
   return (
     <div className="space-y-6">
-      <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-6 shadow-xl backdrop-blur-md">
-        <h2 className="text-xl font-black text-white flex items-center gap-2 mb-6">
-          <span>💸</span> Registrar Egreso / Gasto
-        </h2>
-
-        <form onSubmit={registrarGasto} className="space-y-4 max-w-xl">
-          <div>
-            <label className="block text-xs font-bold uppercase text-neutral-400 mb-1">Monto ($):</label>
-            <input
-              type="number"
-              step="any"
-              value={monto}
-              onChange={(e) => setMonto(e.target.value)}
-              placeholder="Ej: 20000"
-              className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-lg focus:outline-none focus:border-rose-500"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase text-neutral-400 mb-1">Categoría:</label>
-            <select
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value)}
-              className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-rose-500"
-            >
-              <option value="General">General</option>
-              <option value="Proveedores">Pago a Proveedores</option>
-              <option value="Servicios">Luz / Gas / Internet</option>
-              <option value="Sueldos">Adelantos / Sueldos</option>
-              <option value="Flete">Flete / Envíos</option>
-              <option value="Insumos">Insumos y Limpieza</option>
-              <option value="Otros">Otros</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase text-neutral-400 mb-1">Descripción / Motivo:</label>
-            <textarea
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              placeholder="Detalle o concepto del gasto (ej: flete mercadería)"
-              rows={2}
-              className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-rose-500"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={cargando}
-            className="w-full py-3.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-black rounded-xl transition-all shadow-lg shadow-rose-900/30 disabled:opacity-50 cursor-pointer"
-          >
-            {cargando ? 'Registrando...' : 'Registrar Salida de Caja'}
-          </button>
-        </form>
+      <div className="bg-gradient-to-r from-rose-600/20 to-orange-600/20 backdrop-blur-md rounded-2xl p-5 border border-rose-500/30">
+        <h2 className="text-2xl font-black text-white">💸 Control de Gastos y Egreso</h2>
+        <p className="text-rose-200/80 text-sm mt-1">Registrá salidas de dinero y pagos operativos del negocio.</p>
       </div>
 
-      {/* Historial de egresos */}
-      <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-6 shadow-xl backdrop-blur-md">
-        <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
-          <span>📋</span> Historial de Salidas / Gastos
-        </h3>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Formulario */}
+        <div className="bg-neutral-900/60 backdrop-blur-md border border-white/10 rounded-2xl p-5 h-fit">
+          <h3 className="text-lg font-black text-white mb-4">➕ Nuevo Gasto</h3>
+          <form onSubmit={registrarGasto} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-neutral-400 block mb-1">Descripción *</label>
+              <input
+                type="text"
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                placeholder="Ej: Pago de Luz, Insumos..."
+                className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm"
+                required
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-neutral-400 block mb-1">Monto ($) *</label>
+              <input
+                type="number"
+                step="0.01"
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+                placeholder="0.00"
+                className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm font-bold text-rose-400"
+                required
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-neutral-400 block mb-1">Categoría</label>
+              <select
+                value={categoria}
+                onChange={(e) => setCategoria(e.target.value)}
+                className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm"
+              >
+                <option value="General">General</option>
+                <option value="Servicios">Servicios (Luz, Internet, etc.)</option>
+                <option value="Proveedores">Pago Mercadería</option>
+                <option value="Alquiler">Alquiler</option>
+                <option value="Varios">Varios</option>
+              </select>
+            </div>
+            <button
+              type="submit"
+              disabled={guardando}
+              className="w-full bg-rose-600 hover:bg-rose-500 text-white font-black py-3 rounded-xl text-sm transition shadow-lg shadow-rose-900/30 cursor-pointer"
+            >
+              {guardando ? 'Registrando...' : 'Registrar Gasto'}
+            </button>
+          </form>
+        </div>
 
-        {gastos.length === 0 ? (
-          <p className="text-neutral-500 text-sm">No hay salidas de caja registradas recientemente.</p>
-        ) : (
-          <div className="divide-y divide-white/5 overflow-x-auto">
-            {gastos.map((g) => (
-              <div key={g.id} className="py-3 flex justify-between items-center text-sm">
-                <div>
-                  <p className="font-bold text-neutral-200">{g.description || 'Gasto sin detalle'}</p>
-                  <p className="text-xs text-neutral-500">
-                    {new Date(g.created_at).toLocaleDateString()} {new Date(g.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-                <div className="font-black text-rose-400 text-base">
-                  -${Number(g.amount).toLocaleString('es-AR')}
-                </div>
-              </div>
-            ))}
+        {/* Listado */}
+        <div className="lg:col-span-2 bg-neutral-900/60 backdrop-blur-md border border-white/10 rounded-2xl p-5 overflow-hidden">
+          <h3 className="text-lg font-black text-white mb-4">📋 Historial de Gastos</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-white/5 text-neutral-400 text-xs uppercase">
+                <tr>
+                  <th className="p-3">Fecha</th>
+                  <th className="p-3">Descripción</th>
+                  <th className="p-3">Categoría</th>
+                  <th className="p-3 text-right">Monto</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {gastos.map((g) => (
+                  <tr key={g.id} className="hover:bg-white/5">
+                    <td className="p-3 text-xs text-neutral-400">
+                      {new Date(g.created_at).toLocaleDateString('es-AR')} {new Date(g.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                    <td className="p-3 font-bold text-white">{g.description}</td>
+                    <td className="p-3 text-xs text-neutral-300">{g.category || 'General'}</td>
+                    <td className="p-3 text-right font-black text-rose-400">${Number(g.amount).toLocaleString('es-AR')}</td>
+                  </tr>
+                ))}
+                {gastos.length === 0 && !cargando && (
+                  <tr>
+                    <td colSpan={4} className="p-6 text-center text-neutral-500">No hay gastos registrados.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

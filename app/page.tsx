@@ -783,13 +783,10 @@ export default function POS() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-purple-500 selection:text-white pb-28 md:pb-6">
-      {/* HEADER PRINCIPAL - Limpio solo con el selector y las pestañas */}
+      {/* HEADER PRINCIPAL */}
       <header className="sticky top-0 z-40 bg-neutral-900/80 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-3 print:hidden">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="w-full md:w-auto">
-            {/* Se removió el bloque izquierdo fijo de Tonexor */}
-          </div>
-
+          <div className="w-full md:w-auto"></div>
           <div className="flex items-center justify-end w-full md:w-auto gap-3">
             <SelectorNegocio />
           </div>
@@ -837,6 +834,13 @@ export default function POS() {
           Stock
         </button>
         <button
+          onClick={() => { setVistaActual('reposicion'); setMenuMovilAbierto(false); }}
+          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-xl ${vistaActual === 'reposicion' ? 'text-purple-400 bg-purple-500/10' : 'text-neutral-400'}`}
+        >
+          <span className="text-xl">📦</span>
+          Pedidos
+        </button>
+        <button
           onClick={() => { setVistaActual('gastos'); setMenuMovilAbierto(false); }}
           className={`flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-xl ${vistaActual === 'gastos' ? 'text-purple-400 bg-purple-500/10' : 'text-neutral-400'}`}
         >
@@ -844,15 +848,8 @@ export default function POS() {
           Gastos
         </button>
         <button
-          onClick={() => { setVistaActual('dashboard'); setMenuMovilAbierto(false); }}
-          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-xl ${vistaActual === 'dashboard' ? 'text-purple-400 bg-purple-500/10' : 'text-neutral-400'}`}
-        >
-          <span className="text-xl">📊</span>
-          Panel
-        </button>
-        <button
           onClick={() => setMenuMovilAbierto(!menuMovilAbierto)}
-          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-xl ${menuMovilAbierto || ['deudas', 'senas', 'proveedores', 'arqueo', 'reposicion', 'admin'].includes(vistaActual) ? 'text-purple-400 bg-purple-500/20' : 'text-neutral-400'}`}
+          className={`flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-xl ${menuMovilAbierto || ['deudas', 'senas', 'proveedores', 'arqueo', 'dashboard', 'admin'].includes(vistaActual) ? 'text-purple-400 bg-purple-500/20' : 'text-neutral-400'}`}
         >
           <span className="text-xl">📂</span>
           Más ▾
@@ -863,6 +860,7 @@ export default function POS() {
       {menuMovilAbierto && (
         <div className="md:hidden fixed bottom-20 left-4 right-4 bg-neutral-900/95 backdrop-blur-2xl border border-white/20 rounded-3xl p-4 shadow-2xl z-50 grid grid-cols-3 gap-2 animate-in fade-in slide-in-from-bottom-5">
           {[
+            { id: 'dashboard', label: '📊 Dashboard', icon: '📊' },
             { id: 'deudas', label: '👥 Deudas', icon: '👥' },
             { id: 'senas', label: '🔖 Señas', icon: '🔖' },
             { id: 'proveedores', label: '🚚 Proveed.', icon: '🚚' },
