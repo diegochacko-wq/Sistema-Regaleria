@@ -15,29 +15,68 @@ interface ProveedorData {
 }
 
 interface ProveedoresViewProps {
-  proveedoresData?: ProveedorData[]; // Opcional para evitar errores en app/page.tsx
+  proveedoresData?: ProveedorData[];
 }
 
 export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresData = [] }) => {
+  // Estado local para permitir registrar datos si el componente padre no los pasa
+  const [listaProveedores, setListaProveedores] = useState<ProveedorData[]>(
+    proveedoresData.length > 0 ? proveedoresData : [
+      {
+        nombre: "MATI",
+        totalInvertido: 1214165.64,
+        totalGanancia: 1226334.36,
+        productos: [
+          { nombre: "0087 FRAZADA ESTAMPADA 160...", stock: 3, costo: 7650.4, precio: 16000 },
+          { nombre: "1 Erba Pura", stock: 0, costo: 28474, precio: 50000 }
+        ]
+      }
+    ]
+  );
+
   const [proveedorSeleccionado, setProveedorSeleccionado] = useState<string>('TODOS');
   const [tipoInforme, setTipoInforme] = useState<'completo' | 'rapido'>('completo');
+  
+  // Estado para el formulario de nuevo proveedor
+  const [mostrarModal, setMostrarModal] = useState(false);
+  const [nuevoNombre, setNuevoNombre] = useState('');
+  const [nuevoInvertido, setNuevoInvertido] = useState('');
+  const [nuevaGanancia, setNuevaGanancia] = useState('');
 
-  // Cálculos globales seguros
-  const inversionGlobalCosto = proveedoresData.reduce((acc, p) => acc + (p.totalInvertido || 0), 0);
-  const valorGlobalVenta = proveedoresData.reduce((acc, p) => acc + ((p.totalInvertido || 0) + (p.totalGanancia || 0)), 0);
+  const agregarProveedor = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nuevoNombre) return;
 
-  // Función para exportar a Excel (CSV)
+    const nuevoProv: ProveedorData = {
+      nombre: nuevoNombre.toUpperCase(),
+      totalInvertido: Number(nuevoInvertido) || 0,
+      totalGanancia: Number(nuevaGanancia) || 0,
+      productos: []
+    };
+
+    setListaProveedores([...listaProveedores, nuevoProv]);
+    setNuevoNombre('');
+    setNuevoInvertido('');
+    setNuevaGanancia('');
+    setMostrarModal(false);
+  };
+
+  // Cálculos globales
+  const inversionGlobalCosto = listaProveedores.reduce((acc, p) => acc + (p.totalInvertido || 0), 0);
+  const valorGlobalVenta = listaProveedores.reduce((acc, p) => acc + ((p.totalInvertido || 0) + (p.totalGanancia || 0)), 0);
+
+  // Funciones de exportación
   const exportarExcel = () => {
     let contenido = "data:text/csv;charset=utf-8,";
     contenido += "Proveedor,Producto,Cantidad,Costo,Venta,Total Invertido,Total Ganancia\n";
     
     const datosFiltrados = proveedorSeleccionado === 'TODOS' 
-      ? proveedoresData 
-      : proveedoresData.filter(p => p.nombre === proveedorSeleccionado);
+      ? listaProveedores 
+      : listaProveedores.filter(p => p.nombre === proveedorSeleccionado);
 
     datosFiltrados.forEach(prov => {
-      if (tipoInforme === 'completo') {
-        prov.productos?.forEach((prod) => {
+      if (tipoInforme === 'completo' && prov.productos && prov.productos.length > 0) {
+        prov.productos.forEach((prod) => {
           contenido += `"${prov.nombre}","${prod.nombre}",${prod.stock},${prod.costo},${prod.precio},, \n`;
         });
       } else {
@@ -48,34 +87,23 @@ export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresDat
     const encodedUri = encodeURI(contenido);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `informe_proveedores_${tipoInforme}.csv`);
+    link.setAttribute("download", `informe_proveedores.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Función para exportar a Word (.doc)
   const exportarWord = () => {
     const datosFiltrados = proveedorSeleccionado === 'TODOS' 
-      ? proveedoresData 
-      : proveedoresData.filter(p => p.nombre === proveedorSeleccionado);
+      ? listaProveedores 
+      : listaProveedores.filter(p => p.nombre === proveedorSeleccionado);
 
     let htmlContent = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/1999/xhtml"><body>`;
-    htmlContent += `<h1>Informe de Proveedores - ${tipoInforme === 'completo' ? 'Completo' : 'Rápido'}</h1>`;
+    htmlContent += `<h1>Informe de Proveedores</h1>`;
     
     datosFiltrados.forEach(prov => {
       htmlContent += `<h2>Proveedor: ${prov.nombre}</h2>`;
-      htmlContent += `<p><strong>Total Invertido:</strong> $${prov.totalInvertido} | <strong>Ganancia Esperada:</strong> $${prov.totalGanancia}</p>`;
-      
-      if (tipoInforme === 'completo') {
-        htmlContent += `<table border="1" cellspacing="0" cellpadding="5">`;
-        htmlContent += `<tr><th>Producto</th><th>Stock</th><th>Costo</th><th>Venta</th></tr>`;
-        prov.productos?.forEach((prod) => {
-          htmlContent += `<tr><td>${prod.nombre}</td><td>${prod.stock}</td><td>$${prod.costo}</td><td>$${prod.precio}</td></tr>`;
-        });
-        htmlContent += `</table><br/>`;
-      }
-      htmlContent += `<hr/>`;
+      htmlContent += `<p><strong>Total Invertido:</strong> $${prov.totalInvertido} | <strong>Ganancia:</strong> $${prov.totalGanancia}</p><hr/>`;
     });
 
     htmlContent += `</body></html>`;
@@ -83,24 +111,23 @@ export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresDat
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `informe_proveedores_${tipoInforme}.doc`;
+    link.download = `informe_proveedores.doc`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Función para exportar a PDF / Impresión
   const exportarPDF = () => {
     window.print();
   };
 
   const datosFiltrados = proveedorSeleccionado === 'TODOS' 
-    ? proveedoresData 
-    : proveedoresData.filter(p => p.nombre === proveedorSeleccionado);
+    ? listaProveedores 
+    : listaProveedores.filter(p => p.nombre === proveedorSeleccionado);
 
   return (
     <div className="p-6 bg-[#121212] min-h-screen text-white">
-      {/* Cabecera y Barra de Filtros / Exportación */}
+      {/* Cabecera y Botones */}
       <div className="max-w-4xl mx-auto mb-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
@@ -112,8 +139,14 @@ export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresDat
             </p>
           </div>
 
-          {/* Botones de Exportación */}
-          <div className="flex gap-2">
+          {/* Acciones */}
+          <div className="flex gap-2 flex-wrap">
+            <button 
+              onClick={() => setMostrarModal(true)} 
+              className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition"
+            >
+              + Nuevo Proveedor
+            </button>
             <button onClick={exportarExcel} className="bg-green-700 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
               Excel
             </button>
@@ -135,8 +168,8 @@ export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresDat
               onChange={(e) => setProveedorSeleccionado(e.target.value)}
               className="w-full bg-[#262626] border border-gray-700 text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-purple-500"
             >
-              <option value="TODOS">Todos los proveedores</option>
-              {proveedoresData.map((p, idx) => (
+              <option value="TODOS">Todos los proveedores ({listaProveedores.length})</option>
+              {listaProveedores.map((p, idx) => (
                 <option key={idx} value={p.nombre}>{p.nombre}</option>
               ))}
             </select>
@@ -158,15 +191,73 @@ export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresDat
         </div>
       </div>
 
+      {/* Modal para Cargar Proveedor */}
+      {mostrarModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1A1A] border border-gray-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-lg font-bold mb-4 text-white">Registrar Nuevo Proveedor</h3>
+            <form onSubmit={agregarProveedor} className="space-y-4">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Nombre del Proveedor:</label>
+                <input 
+                  type="text" 
+                  value={nuevoNombre} 
+                  onChange={(e) => setNuevoNombre(e.target.value)}
+                  placeholder="Ej: MATI"
+                  required
+                  className="w-full bg-[#262626] border border-gray-700 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Total Invertido (Costo):</label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  value={nuevoInvertido} 
+                  onChange={(e) => setNuevoInvertido(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-[#262626] border border-gray-700 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Ganancia Proyectada:</label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  value={nuevaGanancia} 
+                  onChange={(e) => setNuevaGanancia(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-[#262626] border border-gray-700 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setMostrarModal(false)}
+                  className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-xl text-xs font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-xs font-semibold"
+                >
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Listado de Proveedores en Estilo Tarjeta Oscura */}
       <div className="max-w-4xl mx-auto space-y-6">
         {datosFiltrados.map((prov, index) => {
           const stockTotalProv = prov.productos?.reduce((acc, p) => acc + (p.stock || 0), 0) || 0;
-          const valorVentaProv = prov.productos?.reduce((acc, p) => acc + ((p.precio || 0) * (p.stock || 0)), 0) || prov.totalInvertido + prov.totalGanancia;
+          const valorVentaProv = prov.productos?.reduce((acc, p) => acc + ((p.precio || 0) * (p.stock || 0)), 0) || (prov.totalInvertido + prov.totalGanancia);
 
           return (
             <div key={index} className="bg-[#1A1A1A] border border-gray-800 rounded-2xl p-6 shadow-xl">
-              {/* Cabecera de Proveedor */}
               <div className="flex justify-between items-center border-b border-gray-800 pb-4 mb-4">
                 <h2 className="text-xl font-black tracking-wide text-white uppercase">{prov.nombre}</h2>
                 <span className="bg-[#2A2235] text-purple-300 border border-purple-900/50 text-xs font-bold px-3 py-1 rounded-full">
@@ -174,7 +265,6 @@ export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresDat
                 </span>
               </div>
 
-              {/* Grid de Métricas del Proveedor */}
               <div className="grid grid-cols-2 gap-4 bg-[#212121] p-4 rounded-xl border border-gray-800/60 mb-6">
                 <div>
                   <span className="text-xs text-gray-400 block mb-0.5">Stock Total:</span>
@@ -200,7 +290,6 @@ export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresDat
                 </div>
               </div>
 
-              {/* Detalle de Productos */}
               {prov.productos && prov.productos.length > 0 && (
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Detalle de Productos:</h3>
