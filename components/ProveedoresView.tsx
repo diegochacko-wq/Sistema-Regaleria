@@ -182,3 +182,4 @@ export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresDat
     </div>
   );
 };
+```[cite: 6]
