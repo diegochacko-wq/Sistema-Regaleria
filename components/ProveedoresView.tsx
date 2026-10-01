@@ -181,7 +181,6 @@ export function ProveedoresView({ productosPlana }: { productosPlana: any[] }) {
       document.body.removeChild(link)
       notificar('exito', 'Informe exportado en Word con éxito', 'Exportar')
     } else if (formato === 'pdf') {
-      // Generación de ventana de impresión optimizada para PDF
       const ventanaImpresion = window.open('', '_blank')
       if (!ventanaImpresion) {
         notificar('error', 'Por favor permite las ventanas emergentes (popups) para imprimir', 'Exportar')
@@ -510,13 +509,13 @@ export function ProveedoresView({ productosPlana }: { productosPlana: any[] }) {
           <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-white/10">
             <div>
               <p className="text-xs text-neutral-400 font-bold">Inversión Total (Costo):</p>
-              <p className="text-xl font-black text-white mt-0.5">
+              <p className="text-lg md:text-xl font-black text-white mt-0.5 tracking-tight break-all">
                 ${inversionTotalGlobal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
               </p>
             </div>
             <div>
               <p className="text-xs text-neutral-400 font-bold">Ganancia Total Proyectada:</p>
-              <p className="text-xl font-black text-emerald-400 mt-0.5">
+              <p className="text-lg md:text-xl font-black text-emerald-400 mt-0.5 tracking-tight break-all">
                 ${gananciaTotalGlobal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
               </p>
             </div>
@@ -557,22 +556,31 @@ export function ProveedoresView({ productosPlana }: { productosPlana: any[] }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-neutral-950/60 p-4 rounded-2xl border border-white/5">
-            <p className="text-xs text-neutral-400 font-bold">Stock Total / Artículos:</p>
-            <p className="text-xl font-black text-white mt-1">{stockTotalProv} un. <span className="text-xs text-neutral-400 font-normal">({productosDelProveedor.length} art.)</span></p>
+        {/* Tarjetas de métricas ajustadas para celular */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+          <div className="bg-neutral-950/60 p-3.5 md:p-4 rounded-2xl border border-white/5 flex flex-col justify-between">
+            <p className="text-[11px] md:text-xs text-neutral-400 font-bold leading-snug">Stock Total / Artículos:</p>
+            <p className="text-base md:text-xl font-black text-white mt-1 tracking-tight break-words">
+              {stockTotalProv} un. <span className="text-[10px] md:text-xs text-neutral-400 font-normal">({productosDelProveedor.length} art.)</span>
+            </p>
           </div>
-          <div className="bg-neutral-950/60 p-4 rounded-2xl border border-white/5">
-            <p className="text-xs text-neutral-400 font-bold">Inversión (Costo):</p>
-            <p className="text-xl font-black text-neutral-200 mt-1">${inversionProv.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+          <div className="bg-neutral-950/60 p-3.5 md:p-4 rounded-2xl border border-white/5 flex flex-col justify-between">
+            <p className="text-[11px] md:text-xs text-neutral-400 font-bold leading-snug">Inversión (Costo):</p>
+            <p className="text-base md:text-xl font-black text-neutral-200 mt-1 tracking-tight break-all">
+              ${inversionProv.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+            </p>
           </div>
-          <div className="bg-neutral-950/60 p-4 rounded-2xl border border-white/5">
-            <p className="text-xs text-neutral-400 font-bold">Valor de Venta:</p>
-            <p className="text-xl font-black text-emerald-400 mt-1">${ventaProv.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+          <div className="bg-neutral-950/60 p-3.5 md:p-4 rounded-2xl border border-white/5 flex flex-col justify-between">
+            <p className="text-[11px] md:text-xs text-neutral-400 font-bold leading-snug">Valor de Venta:</p>
+            <p className="text-base md:text-xl font-black text-emerald-400 mt-1 tracking-tight break-all">
+              ${ventaProv.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+            </p>
           </div>
-          <div className="bg-neutral-950/60 p-4 rounded-2xl border border-white/5">
-            <p className="text-xs text-neutral-400 font-bold">Ganancia Proy.:</p>
-            <p className="text-xl font-black text-emerald-400 mt-1">${gananciaProv.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+          <div className="bg-neutral-950/60 p-3.5 md:p-4 rounded-2xl border border-white/5 flex flex-col justify-between">
+            <p className="text-[11px] md:text-xs text-neutral-400 font-bold leading-snug">Ganancia Proy.:</p>
+            <p className="text-base md:text-xl font-black text-emerald-400 mt-1 tracking-tight break-all">
+              ${gananciaProv.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+            </p>
           </div>
         </div>
 
