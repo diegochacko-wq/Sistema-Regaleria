@@ -12,19 +12,17 @@ export function DashboardView() {
   const cargarDatos = async () => {
     setCargando(true);
     try {
-      // 1. Cargar ventas de forma segura con select('*')
       const { data: salesData, error: salesError } = await supabase
         .from('sales')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (salesError) {
-        console.error('⚠️ Error al consultar sales:', salesError.message);
+        console.error('⚠️️ Error al consultar sales:', salesError.message);
       } else {
         setVentas(salesData || []);
       }
 
-      // 2. Cargar movimientos de caja / gastos
       const { data: cashData, error: cashError } = await supabase
         .from('cash_movements')
         .select('*')
@@ -49,23 +47,19 @@ export function DashboardView() {
     cargarDatos();
   }, []);
 
-  // Helper para extraer el monto de la venta según cómo se llame en la BD
   const obtenerMontoVenta = (v: any): number => {
     return Number(v.total_amount ?? v.total ?? v.final_amount ?? v.monto ?? 0);
   };
 
-  // Helper para extraer el monto del gasto
   const obtenerMontoGasto = (g: any): number => {
     return Number(g.amount ?? g.monto ?? 0);
   };
 
-  // Fechas de referencia
   const ahora = new Date();
   const mesActual = ahora.getMonth();
   const anioActual = ahora.getFullYear();
   const hoyStr = ahora.toISOString().split('T')[0];
 
-  // Métricas del Mes
   const metricasMes = useMemo(() => {
     const ventasMes = ventas.filter((v) => {
       if (!v.created_at) return false;
@@ -91,7 +85,6 @@ export function DashboardView() {
     };
   }, [ventas, gastos, mesActual, anioActual]);
 
-  // Métricas de Hoy
   const metricasHoy = useMemo(() => {
     const ventasHoy = ventas.filter((v) => v.created_at && v.created_at.startsWith(hoyStr));
     const gastosHoy = gastos.filter((g) => g.created_at && g.created_at.startsWith(hoyStr));
@@ -107,7 +100,6 @@ export function DashboardView() {
     };
   }, [ventas, gastos, hoyStr]);
 
-  // Filtrado de la tabla según selector
   const ventasFiltradas = useMemo(() => {
     if (filtroPeriodo === 'hoy') {
       return ventas.filter((v) => v.created_at && v.created_at.startsWith(hoyStr));
@@ -122,11 +114,56 @@ export function DashboardView() {
     return ventas;
   }, [ventas, filtroPeriodo, hoyStr, mesActual, anioActual]);
 
+  // Funciones de Exportación para Dashboard
+  const exportarExcelDashboard = () => {
+    let csvContent = "data:text/csv;charset=utf-8,Fecha;ID;Monto\n";
+    ventasFiltradas.forEach((v) => {
+      csvContent += `${v.created_at};${v.id};${obtenerMontoVenta(v)}\n`;
+    });
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `ventas_dashboard_${filtroPeriodo}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportarWordDashboard = () => {
+    const htmlContent = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head><meta charset='utf-8'><title>Reporte Dashboard</title></head>
+      <body style="font-family: Arial;">
+        <h2>Reporte de Dashboard y Balances</h2>
+        <p><strong>Total Ingresos del Mes:</strong> $${metricasMes.totalVentas.toLocaleString('es-AR')}</p>
+        <p><strong>Total Gastos del Mes:</strong> $${metricasMes.totalGastos.toLocaleString('es-AR')}</p>
+        <p><strong>Balance Neto del Mes:</strong> $${metricasMes.balanceNeto.toLocaleString('es-AR')}</p>
+        <h3>Listado de Ventas (${filtroPeriodo})</h3>
+        <table border="1" cellspacing="0" cellpadding="5">
+          <tr><th>Fecha</th><th>ID</th><th>Monto</th></tr>
+          ${ventasFiltradas.slice(0, 100).map(v => `<tr><td>${v.created_at}</td><td>${v.id}</td><td>$${obtenerMontoVenta(v)}</td></tr>`).join('')}
+        </table>
+      </body>
+      </html>
+    `;
+    const blob = new Blob(['\ufeff' + htmlContent], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reporte_dashboard_${filtroPeriodo}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const imprimirDashboard = () => {
+    window.print();
+  };
+
   const nombreMes = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' }).format(ahora);
 
   return (
     <div className="space-y-6">
-      {/* Cabecera */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 backdrop-blur-sm">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
@@ -137,16 +174,35 @@ export function DashboardView() {
           </p>
         </div>
 
-        <button
-          onClick={cargarDatos}
-          disabled={cargando}
-          className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium rounded-xl transition border border-zinc-700/60 disabled:opacity-50"
-        >
-          {cargando ? 'Actualizando...' : '🔄 Actualizar'}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={exportarExcelDashboard}
+            className="px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 text-xs font-semibold rounded-xl transition border border-emerald-500/30"
+          >
+            📊 Excel
+          </button>
+          <button
+            onClick={exportarWordDashboard}
+            className="px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 text-xs font-semibold rounded-xl transition border border-indigo-500/30"
+          >
+            📄 Word
+          </button>
+          <button
+            onClick={imprimirDashboard}
+            className="px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 text-xs font-semibold rounded-xl transition border border-purple-500/30"
+          >
+            🖨️ Imprimir / PDF
+          </button>
+          <button
+            onClick={cargarDatos}
+            disabled={cargando}
+            className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium rounded-xl transition border border-zinc-700/60 disabled:opacity-50"
+          >
+            {cargando ? 'Actualizando...' : '🔄 Actualizar'}
+          </button>
+        </div>
       </div>
 
-      {/* BALANCE MENSUAL */}
       <div className="bg-gradient-to-br from-indigo-950/40 via-zinc-900/80 to-zinc-900/80 border border-indigo-500/30 rounded-2xl p-5 sm:p-6 shadow-xl backdrop-blur-sm">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-zinc-800/80">
           <div className="flex items-center gap-2">
@@ -193,7 +249,6 @@ export function DashboardView() {
         </div>
       </div>
 
-      {/* BALANCE DE HOY */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4">
           <p className="text-xs text-zinc-400">Ventas de Hoy</p>
@@ -224,7 +279,6 @@ export function DashboardView() {
         </div>
       </div>
 
-      {/* HISTORIAL DE VENTAS */}
       <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
           <h3 className="font-semibold text-zinc-200 flex items-center gap-2">

@@ -10,234 +10,12 @@ import ModuloDeudas from '../components/ModuloDeudas'
 import ModuloSenas from '../components/ModuloSenas'
 import GastosView from '@/components/GastosView'
 import { ProveedoresView } from '@/components/ProveedoresView'
+import { PedidosView } from '@/components/PedidosView'
 import DashboardView from '@/components/DashboardView'
 import ArqueoView from '@/components/ArqueoView'
 import PosView from '@/components/PosView'
 import AdminUsuariosView from '@/components/AdminUsuariosView'
 import { useNotificaciones } from '@/components/Notificaciones'
-
-// ============= MÓDULO DE REPOSICIÓN / PEDIDOS (integrado) =============
-function ModuloReposicion() {
-  const { negocioActual } = useNegocio()
-  const [productos, setProductos] = useState<any[]>([])
-  const [busquedaRepo, setBusquedaRepo] = useState('')
-  const [filtroProveedor, setFiltroProveedor] = useState('TODOS')
-  const [carritoRepo, setCarritoRepo] = useState<Record<string, number>>({})
-  const [cargandoRepo, setCargandoRepo] = useState(true)
-
-  useEffect(() => {
-    if (negocioActual?.id) cargarProductosRepo()
-  }, [negocioActual?.id])
-
-  const cargarProductosRepo = async () => {
-    if (!negocioActual) return
-    setCargandoRepo(true)
-    const { data } = await supabase
-      .from('products')
-      .select('id, name, stock, min_stock, supplier, sale_price, cost_price, active')
-      .eq('negocio_id', negocioActual.id)
-      .order('name')
-    setProductos(data || [])
-    setCargandoRepo(false)
-  }
-
-  const faltantes = productos.filter((p: any) => p.active !== false && p.stock <= p.min_stock)
-  const proveedoresLista = Array.from(new Set(faltantes.map((p: any) => p.supplier || 'General'))).sort()
-
-  const faltantesFiltrados = faltantes
-    .filter((p: any) => filtroProveedor === 'TODOS' || (p.supplier || 'General') === filtroProveedor)
-    .filter((p: any) => p.name.toLowerCase().includes(busquedaRepo.toLowerCase()))
-
-  const sugerido = (p: any) => Math.max((p.min_stock || 0) * 2 - p.stock, 1)
-
-  const agregarAlCarrito = (p: any) => {
-    setCarritoRepo((prev) => ({ ...prev, [p.id]: (prev[p.id] || 0) + sugerido(p) }))
-  }
-  const quitarDelCarrito = (id: string) => {
-    setCarritoRepo((prev) => {
-      const n = { ...prev }
-      delete n[id]
-      return n
-    })
-  }
-  const cambiarCantidad = (id: string, cant: number) => {
-    if (cant <= 0) return quitarDelCarrito(id)
-    setCarritoRepo((prev) => ({ ...prev, [id]: cant }))
-  }
-
-  const productosCarrito = Object.entries(carritoRepo)
-    .map(([id, cant]) => {
-      const p = productos.find((x: any) => x.id === id)
-      return p ? { ...p, cantPedir: cant } : null
-    })
-    .filter(Boolean) as any[]
-
-  const porProveedor: Record<string, any[]> = {}
-  productosCarrito.forEach((p) => {
-    const prov = p.supplier || 'General'
-    if (!porProveedor[prov]) porProveedor[prov] = []
-    porProveedor[prov].push(p)
-  })
-
-  const fechaHoy = new Date().toLocaleDateString('es-AR')
-
-  const textoPlano = (prov?: string) => {
-    const grupos = prov ? { [prov]: porProveedor[prov] } : porProveedor
-    let t = `📦 Pedido de Reposición - ${fechaHoy}\n`
-    Object.entries(grupos).forEach(([pr, items]: any) => {
-      t += `\nSupplier: ${pr}\n`
-      items.forEach((p: any) => {
-        t += `- ${p.name}: pedir ${p.cantPedir} (stock actual ${p.stock} / mínimo ${p.min_stock})\n`
-      })
-    })
-    return t
-  }
-
-  const exportarWhatsApp = () => {
-    window.open(`https://wa.me/?text=${encodeURIComponent(textoPlano())}`, '_blank')
-  }
-  const exportarEmail = () => {
-    window.location.href = `mailto:?subject=${encodeURIComponent('Pedido de Reposición - ' + fechaHoy)}&body=${encodeURIComponent(textoPlano())}`
-  }
-  const exportarExcel = () => {
-    const filas = [['Proveedor', 'Producto', 'Cantidad a pedir', 'Stock actual', 'Stock mínimo']]
-    productosCarrito.forEach((p) => filas.push([p.supplier || 'General', p.name, String(p.cantPedir), String(p.stock), String(p.min_stock)]))
-    const csv = '\uFEFF' + filas.map((f) => f.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n')
-    descargarArchivo(csv, `pedido-${Date.now()}.csv`, 'text/csv;charset=utf-8')
-  }
-  const exportarWord = () => {
-    let html = `<html><head><meta charset="utf-8"></head><body><h2>📦 Pedido de Reposición - ${fechaHoy}</h2>`
-    Object.entries(porProveedor).forEach(([pr, items]: any) => {
-      html += `<h3>${pr}</h3><table border="1" cellpadding="6" style="border-collapse:collapse"><tr><th>Producto</th><th>Cantidad</th><th>Stock actual</th><th>Mínimo</th></tr>`
-      items.forEach((p: any) => {
-        html += `<tr><td>${p.name}</td><td>${p.cantPedir}</td><td>${p.stock}</td><td>${p.min_stock}</td></tr>`
-      })
-      html += '</table>'
-    })
-    html += '</body></html>'
-    descargarArchivo(html, `pedido-${Date.now()}.doc`, 'application/msword')
-  }
-  const descargarArchivo = (contenido: string, nombre: string, tipo: string) => {
-    const blob = new Blob([contenido], { type: tipo })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = nombre
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-amber-600/20 to-orange-600/20 backdrop-blur-md rounded-2xl p-5 border border-amber-500/30">
-        <h2 className="text-2xl font-black text-white">📦 Reposición / Pedidos</h2>
-        <div className="flex flex-wrap items-center justify-between gap-3 mt-1">
-          <p className="text-amber-200/80 text-sm">
-            {cargandoRepo ? 'Cargando…' : `${faltantes.length} producto(s) con stock bajo o faltante`}
-          </p>
-          {productosCarrito.length > 0 && (
-            <div className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 px-3 py-1 rounded-xl text-xs font-bold">
-              🛒 Pedido activo: {productosCarrito.length} producto(s) ({productosCarrito.reduce((acc: number, x: any) => acc + x.cantPedir, 0)} u.)
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-3">
-        <input
-          value={busquedaRepo}
-          onChange={(e) => setBusquedaRepo(e.target.value)}
-          placeholder="🔍 Buscar producto…"
-          className="flex-1 bg-neutral-900/70 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-neutral-500"
-        />
-        <select
-          value={filtroProveedor}
-          onChange={(e) => setFiltroProveedor(e.target.value)}
-          className="bg-neutral-900/70 border border-white/10 rounded-xl px-4 py-3 text-white"
-        >
-          <option value="TODOS">Todos los proveedores</option>
-          {proveedoresLista.map((pr) => (
-            <option key={pr} value={pr}>{pr}</option>
-          ))}
-        </select>
-        <button onClick={cargarProductosRepo} className="bg-white/5 hover:bg-white/10 text-neutral-300 px-4 py-3 rounded-xl font-bold text-sm">🔄 Actualizar</button>
-      </div>
-
-      <div className="bg-neutral-900/50 backdrop-blur-md rounded-2xl border border-white/10 overflow-x-auto">
-        <table className="w-full text-sm min-w-[500px]">
-          <thead className="bg-white/5 text-neutral-400">
-            <tr>
-              <th className="p-3 text-left">Producto</th>
-              <th className="p-3 text-right">Stock</th>
-              <th className="p-3 text-right">Mínimo</th>
-              <th className="p-3 text-center">Sugerido</th>
-              <th className="p-3 text-right">Proveedor</th>
-              <th className="p-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {faltantesFiltrados.map((p: any) => (
-              <tr key={p.id} className="border-t border-white/5">
-                <td className="p-3 font-bold text-white">{p.name}</td>
-                <td className={`p-3 text-right font-black ${p.stock === 0 ? 'text-rose-400' : 'text-amber-400'}`}>{p.stock}</td>
-                <td className="p-3 text-right text-neutral-400">{p.min_stock}</td>
-                <td className="p-3 text-center text-emerald-400 font-bold">{sugerido(p)}</td>
-                <td className="p-3 text-right text-neutral-300">{p.supplier || 'General'}</td>
-                <td className="p-3 text-right">
-                  <button
-                    onClick={() => agregarAlCarrito(p)}
-                    className={`${(carritoRepo[p.id] || 0) > 0 ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-purple-600 hover:bg-purple-500'} text-white px-3 py-1.5 rounded-xl font-bold text-xs transition shadow-sm`}
-                  >
-                    {(carritoRepo[p.id] || 0) > 0 ? `✓ En pedido (${carritoRepo[p.id]})` : '🛒 Agregar'}
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {faltantesFiltrados.length === 0 && !cargandoRepo && (
-              <tr><td colSpan={6} className="p-6 text-center text-neutral-500">✅ No hay productos con stock bajo en este filtro</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {productosCarrito.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <button onClick={exportarWhatsApp} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm">💬 WhatsApp</button>
-            <button onClick={exportarEmail} className="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm">✉️ Email</button>
-            <button onClick={exportarExcel} className="bg-green-700 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm">📊 Excel</button>
-            <button onClick={exportarWord} className="bg-blue-700 hover:bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm">📄 Word</button>
-            <button onClick={() => setCarritoRepo({})} className="bg-white/5 hover:bg-white/10 text-neutral-300 px-4 py-2.5 rounded-xl font-bold text-sm">🗑️ Vaciar</button>
-          </div>
-
-          {Object.entries(porProveedor).map(([prov, items]: any) => (
-            <div key={prov} className="bg-neutral-900/60 backdrop-blur-md rounded-2xl border border-white/10 p-4">
-              <h3 className="font-black text-white mb-3">🏷️ {prov}</h3>
-              <div className="space-y-2">
-                {items.map((p: any) => (
-                  <div key={p.id} className="flex items-center justify-between bg-neutral-950/50 rounded-xl px-4 py-2.5 border border-white/5">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-white truncate">{p.name}</p>
-                      <p className="text-xs text-neutral-500">Stock {p.stock} / mín {p.min_stock}</p>
-                    </div>
-                    <input
-                      type="number"
-                      min={1}
-                      value={p.cantPedir}
-                      onChange={(e) => cambiarCantidad(p.id, Number(e.target.value))}
-                      className="w-20 bg-neutral-900 border border-white/10 rounded-xl px-3 py-1.5 text-white text-right font-bold mx-3"
-                    />
-                    <button onClick={() => quitarDelCarrito(p.id)} className="text-rose-400 hover:text-rose-300 font-bold px-2">✕</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 export default function POS() {
   const { negocioActual, loading: cargandoNegocio } = useNegocio()
@@ -278,6 +56,7 @@ export default function POS() {
   const [codigoProd, setCodigoProd] = useState('')
   const [categoriaProd, setCategoriaProd] = useState('')
   const [proveedorProd, setProveedorProd] = useState('')
+  const [proveedoresDB, setProveedoresDB] = useState<any[]>([])
 
   // Buscador rápido de actualización en inventario
   const [productoAEditar, setProductoAEditar] = useState<any | null>(null)
@@ -341,6 +120,7 @@ export default function POS() {
       cargarProductos()
       verificarTurnoAbierto()
       cargarCategorias()
+      cargarProveedores()
       cargarVentasDashboard()
       cargarGastos()
     }
@@ -353,6 +133,8 @@ export default function POS() {
     } else if (vistaActual === 'dashboard') {
       cargarVentasDashboard()
       cargarGastos()
+    } else if (vistaActual === 'inventario') {
+      cargarProveedores()
     }
   }, [vistaActual, turnoAbierto, negocioActual?.id])
 
@@ -456,6 +238,20 @@ export default function POS() {
       setCategoriasDB(data || [])
     } catch (err) {
       console.error('Error al cargar categorías:', err)
+    }
+  }
+
+  const cargarProveedores = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('*')
+        .order('name')
+
+      if (error) throw error
+      setProveedoresDB(data || [])
+    } catch (err: any) {
+      console.error('Error al cargar proveedores:', err.message || err)
     }
   }
 
@@ -781,6 +577,10 @@ export default function POS() {
 
   if (!montado) return null
 
+  const productosInventarioFiltrados = productos.filter(
+    p => p.nombre.toLowerCase().includes(busquedaInventario.toLowerCase()) || (p.codigo && p.codigo.includes(busquedaInventario))
+  )
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-purple-500 selection:text-white pb-28 md:pb-6">
       {/* HEADER PRINCIPAL */}
@@ -817,7 +617,7 @@ export default function POS() {
         </div>
       </header>
 
-      {/* 📱 BARRA DE NAVEGACIÓN INFERIOR (Celulares - ACCESO COMPLETO) */}
+      {/* 📱 BARRA DE NAVEGACIÓN INFERIOR (Celulares) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-neutral-900/95 backdrop-blur-2xl border-t border-white/10 flex justify-around items-center p-2 z-50 shadow-2xl print:hidden">
         <button
           onClick={() => { setVistaActual('pos'); setMenuMovilAbierto(false); }}
@@ -1068,13 +868,16 @@ export default function POS() {
 
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-neutral-400">Proveedor</label>
-                    <input
-                      type="text"
+                    <select
                       value={proveedorProd}
                       onChange={(e) => setProveedorProd(e.target.value)}
-                      placeholder="Ej: Distribuidora Norte"
                       className="w-full bg-neutral-950/80 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-purple-500"
-                    />
+                    >
+                      <option value="General">General (Sin especificar)</option>
+                      {proveedoresDB.map((prov) => (
+                        <option key={prov.id} value={prov.name}>{prov.name}</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="md:col-span-2 space-y-1">
@@ -1126,8 +929,13 @@ export default function POS() {
               <div className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
-                    <h3 className="text-xl font-black text-white">Listado de Artículos</h3>
-                    <p className="text-xs text-neutral-400">Podés editar stock o precio directamente haciendo clic en los valores</p>
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xl font-black text-white">Listado de Artículos</h3>
+                      <span className="px-3 py-1 bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded-xl text-xs font-black tracking-wide">
+                        {productosInventarioFiltrados.length} {productosInventarioFiltrados.length === 1 ? 'producto' : 'productos'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-neutral-400 mt-0.5">Podés editar stock o precio directamente haciendo clic en los valores</p>
                   </div>
                   <input
                     type="text"
@@ -1151,46 +959,44 @@ export default function POS() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {productos
-                        .filter(p => p.nombre.toLowerCase().includes(busquedaInventario.toLowerCase()) || (p.codigo && p.codigo.includes(busquedaInventario)))
-                        .map((p) => (
-                          <tr key={p.id} className="hover:bg-white/5 transition">
-                            <td className="p-3 font-bold text-white">{p.nombre}</td>
-                            <td className="p-3 text-xs text-neutral-400 font-mono">{p.codigo || '-'}</td>
-                            <td className="p-3 text-xs text-neutral-300">{p.proveedor}</td>
-                            <td className="p-3">
-                              <input
-                                type="number"
-                                defaultValue={p.stock}
-                                onBlur={(e) => guardarEdicionDirecta(p.id, 'stock', parseInt(e.target.value, 10))}
-                                className="w-16 bg-neutral-950/60 border border-white/10 rounded-lg px-2 py-1 text-white font-bold"
-                              />
-                            </td>
-                            <td className="p-3">
-                              <input
-                                type="number"
-                                step="0.01"
-                                defaultValue={p.precio}
-                                onBlur={(e) => guardarEdicionDirecta(p.id, 'price', parseFloat(e.target.value))}
-                                className="w-24 bg-neutral-950/60 border border-white/10 rounded-lg px-2 py-1 text-emerald-400 font-bold"
-                              />
-                            </td>
-                            <td className="p-3 text-right space-x-2">
-                              <button
-                                onClick={() => seleccionarProductoParaEditar(p)}
-                                className="bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 text-xs px-2.5 py-1.5 rounded-lg border border-purple-500/20 cursor-pointer"
-                              >
-                                ✏️ Editar
-                              </button>
-                              <button
-                                onClick={() => prepararEtiquetas(p)}
-                                className="bg-white/5 hover:bg-white/10 text-neutral-300 text-xs px-2.5 py-1.5 rounded-lg border border-white/10 cursor-pointer"
-                              >
-                                🏷️ Etiqueta
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                      {productosInventarioFiltrados.map((p) => (
+                        <tr key={p.id} className="hover:bg-white/5 transition">
+                          <td className="p-3 font-bold text-white">{p.nombre}</td>
+                          <td className="p-3 text-xs text-neutral-400 font-mono">{p.codigo || '-'}</td>
+                          <td className="p-3 text-xs text-neutral-300">{p.proveedor}</td>
+                          <td className="p-3">
+                            <input
+                              type="number"
+                              defaultValue={p.stock}
+                              onBlur={(e) => guardarEdicionDirecta(p.id, 'stock', parseInt(e.target.value, 10))}
+                              className="w-16 bg-neutral-950/60 border border-white/10 rounded-lg px-2 py-1 text-white font-bold"
+                            />
+                          </td>
+                          <td className="p-3">
+                            <input
+                              type="number"
+                              step="0.01"
+                              defaultValue={p.precio}
+                              onBlur={(e) => guardarEdicionDirecta(p.id, 'price', parseFloat(e.target.value))}
+                              className="w-24 bg-neutral-950/60 border border-white/10 rounded-lg px-2 py-1 text-emerald-400 font-bold"
+                            />
+                          </td>
+                          <td className="p-3 text-right space-x-2">
+                            <button
+                              onClick={() => seleccionarProductoParaEditar(p)}
+                              className="bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 text-xs px-2.5 py-1.5 rounded-lg border border-purple-500/20 cursor-pointer"
+                            >
+                              ✏️ Editar
+                            </button>
+                            <button
+                              onClick={() => prepararEtiquetas(p)}
+                              className="bg-white/5 hover:bg-white/10 text-neutral-300 text-xs px-2.5 py-1.5 rounded-lg border border-white/10 cursor-pointer"
+                            >
+                              🏷️ Etiqueta
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -1199,7 +1005,7 @@ export default function POS() {
           )}
 
           {/* OTRAS VISTAS INTEGRADAS */}
-          {vistaActual === 'proveedores' && <ProveedoresView />}
+          {vistaActual === 'proveedores' && <ProveedoresView productosPlana={productos} />}
           {vistaActual === 'gastos' && <GastosView />}          
           {vistaActual === 'arqueo' && (
             <ArqueoView
@@ -1214,7 +1020,7 @@ export default function POS() {
           {vistaActual === 'dashboard' && <DashboardView />}
           {vistaActual === 'deudas' && <div className="print:hidden"><ModuloDeudas /></div>}
           {vistaActual === 'senas' && <div className="print:hidden"><ModuloSenas /></div>}
-          {vistaActual === 'reposicion' && <div className="print:hidden"><ModuloReposicion /></div>}
+          {vistaActual === 'reposicion' && <div className="print:hidden"><PedidosView /></div>}
           
           {/* VISTA DE ADMINISTRACIÓN (Protegida) */}
           {vistaActual === 'admin' && !cargandoUsuario && userEmail === 'diegochacko@gmail.com' && (

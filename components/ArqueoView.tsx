@@ -20,7 +20,6 @@ export function ArqueoView({ turnoPadre, onTurnoCerrado, onVolverPos }: ArqueoVi
   const [montoContado, setMontoContado] = useState<string>('');
   const [cerrando, setCerrando] = useState(false);
   
-  // Estados para el Modal de Ticket de Cierre / Arqueo
   const [datosTicketCierre, setDatosTicketCierre] = useState<any | null>(null);
   const [mostrarModalTicket, setMostrarModalTicket] = useState(false);
 
@@ -31,7 +30,6 @@ export function ArqueoView({ turnoPadre, onTurnoCerrado, onVolverPos }: ArqueoVi
     mensaje?: string;
   } | null>(null);
 
-  // 1. Cargar turno abierto, sus métricas y desglose real por medio de pago por separado
   const cargarTurnoYMovimientos = async () => {
     setCargando(true);
     try {
@@ -121,7 +119,241 @@ export function ArqueoView({ turnoPadre, onTurnoCerrado, onVolverPos }: ArqueoVi
     window.print();
   };
 
-  // 2. Ejecutar Arqueo Ciego y Cierre de Turno
+  // Funciones de Exportación para Arqueo
+  const exportarExcelArqueo = () => {
+    if (!turno) return;
+    let csvContent = "data:text/csv;charset=utf-8,Concepto;Valor\n";
+    csvContent += `Monto Inicial;${turno.opening_amount || 0}\n`;
+    csvContent += `Total Facturado;${totalFacturado}\n`;
+    csvContent += `Total Egresos;${totalEgresos}\n`;
+    Object.entries(pagosPorMetodo).forEach(([metodo, monto]) => {
+      csvContent += `Metodo ${metodo};${monto}\n`;
+    });
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `arqueo_turno_${turno.id}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportarWordArqueo = () => {
+    if (!turno) return;
+    const htmlContent = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head><meta charset='utf-8'><title>Arqueo de Caja</title></head>
+      <body style="font-family: Arial;">
+        <h2>Informe de Arqueo y Cierre de Turno</h2>
+        <p><strong>Apertura:</strong> ${turno.opened_at}</p>
+        <hr/>
+        <p><strong>Monto Inicial:</strong> $${Number(turno.opening_amount || 0).toLocaleString('es-AR')}</p>
+        <p><strong>Total Facturado:</strong> $${totalFacturado.toLocaleString('es-AR')}</p>
+        <p><strong>Total Egresos:</strong> $${totalEgresos.toLocaleString('es-AR')}</p>
+        <h3>Desglose por Medio de Pago:</h3>
+        <ul>
+          ${Object.entries(pagosPorMetodo).map(([m, val]) => `<li>${m}:$${Number(val).toLocaleString('es-AR')}</li>`).join('')}
+        </ul>
+      </body>
+      </html>
+    `;
+    const blob = new Blob(['\ufeff' + htmlContent], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `arqueo_turno_${turno.id}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const exportarPdfArqueo = () => {
+    if (!turno) return;
+    const ventanaPdf = window.open('', '_blank');
+    if (!ventanaPdf) {
+      alert('Por favor, permití las ventanas emergentes para descargar el PDF.');
+      return;
+    }
+
+    const nombreNegocio = negocioActual?.name || negocioActual?.nombre || negocioActual?.nombre_negocio || 'Comercio';
+
+    const htmlPdf = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset='utf-8'>
+        <title>Arqueo de Turno - ${turno.id}</title>
+        <style>
+          body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 40px; 
+            color: #2d3748; 
+            background-color: #f7fafc;
+            margin: 0;
+          }
+          .invoice-box {
+            max-width: 800px;
+            margin: auto;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            border-top: 6px solid #4a5568;
+          }
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #edf2f7;
+            padding-bottom: 20px;
+            margin-bottom: 25px;
+          }
+          .company-name {
+            font-size: 22px;
+            font-weight: 800;
+            color: #1a202c;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .report-title {
+            font-size: 14px;
+            color: #718096;
+            font-weight: 600;
+            margin-top: 4px;
+          }
+          .meta-info {
+            text-align: right;
+            font-size: 13px;
+            color: #4a5568;
+          }
+          .meta-info span {
+            font-weight: bold;
+            color: #2d3748;
+          }
+          h3 {
+            font-size: 15px;
+            color: #2d3748;
+            margin-top: 30px;
+            margin-bottom: 10px;
+            border-left: 4px solid #4a5568;
+            padding-left: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 10px; 
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+          }
+          th, td { 
+            padding: 12px 16px; 
+            text-align: left; 
+            font-size: 13px; 
+          }
+          th { 
+            background-color: #f8fafc; 
+            color: #4a5568;
+            font-weight: 700;
+            border-bottom: 2px solid #e2e8f0;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+          }
+          tr:not(:last-child) td {
+            border-bottom: 1px solid #edf2f7;
+          }
+          .text-right {
+            text-align: right;
+          }
+          .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 11px;
+            color: #a0aec0;
+            border-top: 1px solid #edf2f7;
+            padding-top: 15px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="invoice-box">
+          <div class="header">
+            <div>
+              <div class="company-name">${nombreNegocio}</div>
+              <div class="report-title">Informe de Arqueo y Control de Turno</div>
+            </div>
+            <div class="meta-info">
+              <p>Turno ID: <span>#${turno.id.slice(0, 8)}</span></p>
+              <p>Fecha Apertura: <span>${new Date(turno.opened_at).toLocaleString()}</span></p>
+            </div>
+          </div>
+
+          <h3>Resumen General de Caja</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Concepto</th>
+                <th class="text-right">Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Monto Inicial de Caja</td>
+                <td class="text-right" style="font-weight: 600;">$${Number(turno.opening_amount || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+              </tr>
+              <tr>
+                <td>Total Facturado</td>
+                <td class="text-right" style="font-weight: 600; color: #2f855a;">+$${totalFacturado.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+              </tr>
+              <tr>
+                <td>Egresos del Turno</td>
+                <td class="text-right" style="font-weight: 600; color: #c53030;">-$${totalEgresos.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+              </tr>
+            </tbody>
+          </table>
+          
+          <h3>Desglose por Medio de Pago</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Medio de Pago</th>
+                <th class="text-right">Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${Object.entries(pagosPorMetodo).length > 0 
+                ? Object.entries(pagosPorMetodo).map(([m, val]) => `
+                    <tr>
+                      <td style="text-transform: capitalize;">${m.replace('_', ' ')}</td>                       <td class="text-right" style="font-weight: 600;">$${Number(val).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                  `).join('')
+                : `<tr><td colspan="2" style="text-align: center; color: #a0aec0; font-style: italic;">No hay pagos registrados</td></tr>`
+              }
+            </tbody>
+          </table>
+
+          <div class="footer">
+            Reporte generado automáticamente por el sistema de gestión POS • ${new Date().toLocaleString()}
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    ventanaPdf.document.write(htmlPdf);
+    ventanaPdf.document.close();
+  };
+
   const ejecutarArqueoCiego = async () => {
     if (!turno?.id) return;
     const monto = parseFloat(montoContado);
@@ -149,7 +381,6 @@ export function ArqueoView({ turnoPadre, onTurnoCerrado, onVolverPos }: ArqueoVi
         }
       }
 
-      // Cálculo correcto del efectivo esperado (Saldo inicial + Efectivo cobrado - Egresos)
       const montoInicial = Number(turno.opening_amount || 0);
       const efectivoCobrado = Number(pagosPorMetodo['efectivo'] || 0);
       const esperadoCalculado = montoInicial + efectivoCobrado - totalEgresos;
@@ -162,9 +393,6 @@ export function ArqueoView({ turnoPadre, onTurnoCerrado, onVolverPos }: ArqueoVi
 
       if (error) throw error;
 
-      const res = typeof data === 'object' && data !== null ? data : {};
-      
-      // Forzamos el cálculo correcto en base al efectivo real de caja si el RPC devolvía el total general
       const esperadoFinal = esperadoCalculado;
       const dif = monto - esperadoFinal;
 
@@ -182,7 +410,6 @@ export function ArqueoView({ turnoPadre, onTurnoCerrado, onVolverPos }: ArqueoVi
         mensaje: textoDif,
       });
 
-      // Preparar datos para el ticket de arqueo/cierre
       setDatosTicketCierre({
         negocio: nombreNegocioTicket,
         fechaCierre: new Date().toLocaleString(),
@@ -208,14 +435,12 @@ export function ArqueoView({ turnoPadre, onTurnoCerrado, onVolverPos }: ArqueoVi
 
   return (
     <div className="bg-neutral-900/40 border border-white/10 p-6 rounded-3xl shadow-2xl max-w-lg mx-auto space-y-6">
-      {/* Modal para Imprimir Ticket de Arqueo / Cierre */}
       {mostrarModalTicket && datosTicketCierre && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-neutral-950 border border-purple-500/40 p-6 rounded-3xl flex flex-col items-center relative shadow-2xl w-full max-w-sm">
             <h3 className="text-base font-black text-white mb-1">¡Cierre Exitoso! 📊</h3>
             <p className="text-xs text-neutral-400 mb-4">¿Deseás imprimir el informe de arqueo?</p>
 
-            {/* Vista Previa del Ticket de Arqueo */}
             <div id="ticket-impresion" className="w-full bg-white text-black p-4 rounded-xl font-mono text-xs space-y-2 shadow-inner">
               <div className="text-center font-bold border-b border-dashed border-neutral-400 pb-2">
                 <p className="text-sm uppercase">{datosTicketCierre.negocio}</p>
@@ -238,7 +463,6 @@ export function ArqueoView({ turnoPadre, onTurnoCerrado, onVolverPos }: ArqueoVi
                 </div>
               </div>
 
-              {/* Desglose de pagos */}
               <div className="py-1 border-b border-dashed border-neutral-400 text-[10px] space-y-1">
                 <p className="font-bold">Desglose de Medios:</p>
                 {Object.entries(datosTicketCierre.pagosPorMetodo).map(([metodo, monto]: [string, any]) => (
@@ -293,17 +517,31 @@ export function ArqueoView({ turnoPadre, onTurnoCerrado, onVolverPos }: ArqueoVi
         </div>
       )}
 
-      <div>
-        <h2 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
-          <span>📊</span> Arqueo y Control de Turno
-        </h2>
-        <p className="text-sm text-neutral-400">Resumen y arqueo ciego del turno de caja.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
+            <span>📊</span> Arqueo y Control de Turno
+          </h2>
+          <p className="text-sm text-neutral-400">Resumen y arqueo ciego del turno de caja.</p>
+        </div>
+        {turno && (
+          <div className="flex gap-1.5">
+            <button onClick={exportarExcelArqueo} title="Exportar a Excel" className="p-2 bg-neutral-800 hover:bg-neutral-700 text-emerald-400 rounded-xl text-xs font-bold transition border border-white/5">
+              📊 Excel
+            </button>
+            <button onClick={exportarWordArqueo} title="Exportar a Word" className="p-2 bg-neutral-800 hover:bg-neutral-700 text-indigo-400 rounded-xl text-xs font-bold transition border border-white/5">
+              📄 Word
+            </button>
+            <button onClick={exportarPdfArqueo} title="Exportar a PDF" className="p-2 bg-neutral-800 hover:bg-neutral-700 text-rose-400 rounded-xl text-xs font-bold transition border border-white/5">
+              📑 PDF
+            </button>
+          </div>
+        )}
       </div>
 
       {cargando ? (
         <div className="p-8 text-center text-neutral-400 text-sm">Cargando estado del turno...</div>
       ) : resultadoCierre ? (
-        /* Pantalla de Confirmación de Cierre */
         <div className="bg-neutral-950/70 p-6 rounded-2xl border border-white/10 space-y-4 text-center">
           <div className="text-4xl">✅</div>
           <h3 className="text-lg font-bold text-white">Turno Cerrado Correctamente</h3>
@@ -335,7 +573,6 @@ export function ArqueoView({ turnoPadre, onTurnoCerrado, onVolverPos }: ArqueoVi
           </button>
         </div>
       ) : turno ? (
-        /* Formulario de Arqueo Ciego con Desglose */
         <div className="bg-neutral-950/60 p-6 rounded-2xl border border-white/10 space-y-4">
           <div className="flex justify-between text-sm text-neutral-300">
             <span>Monto Inicial de Caja:</span>
@@ -351,7 +588,6 @@ export function ArqueoView({ turnoPadre, onTurnoCerrado, onVolverPos }: ArqueoVi
             </strong>
           </div>
 
-          {/* Desglose por Medio de Pago */}
           <div className="space-y-1.5 bg-white/5 p-3 rounded-xl border border-white/5 text-xs">
             <span className="text-neutral-400 font-bold uppercase tracking-wider block mb-1">Desglose por Medio de Pago:</span>
             {Object.keys(pagosPorMetodo).length > 0 ? (
@@ -408,7 +644,6 @@ export function ArqueoView({ turnoPadre, onTurnoCerrado, onVolverPos }: ArqueoVi
           </div>
         </div>
       ) : (
-        /* Sin Turno Abierto */
         <div className="bg-neutral-950/60 p-6 rounded-2xl border border-white/10 text-center space-y-3">
           <p className="text-neutral-400">No hay ningún turno de caja abierto en este momento.</p>
           {onVolverPos && (

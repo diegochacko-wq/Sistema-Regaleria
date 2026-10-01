@@ -1,248 +1,435 @@
-import React, { useState } from 'react';
+'use client'
 
-interface Producto {
-  nombre: string;
-  stock: number;
-  costo: number;
-  precio: number;
-}
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useNegocio } from '@/context/NegocioContext'
+import { useNotificaciones } from '@/components/Notificaciones'
 
-interface ProveedorData {
-  nombre: string;
-  totalInvertido: number;
-  totalGanancia: number;
-  productos: Producto[];
-}
+export function ProveedoresView({ productosPlana }: { productosPlana: any[] }) {
+  const { negocioActual } = useNegocio()
+  const { notificar } = useNotificaciones()
 
-interface ProveedoresViewProps {
-  proveedoresData?: ProveedorData[];
-}
-
-export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresData = [] }) => {
-  // Estado local para permitir registrar datos si el componente padre no los pasa
-  const [listaProveedores, setListaProveedores] = useState<ProveedorData[]>(
-    proveedoresData.length > 0 ? proveedoresData : [
-      {
-        nombre: "MATI",
-        totalInvertido: 1214165.64,
-        totalGanancia: 1226334.36,
-        productos: [
-          { nombre: "0087 FRAZADA ESTAMPADA 160...", stock: 3, costo: 7650.4, precio: 16000 },
-          { nombre: "1 Erba Pura", stock: 0, costo: 28474, precio: 50000 }
-        ]
-      }
-    ]
-  );
-
-  const [proveedorSeleccionado, setProveedorSeleccionado] = useState<string>('TODOS');
-  const [tipoInforme, setTipoInforme] = useState<'completo' | 'rapido'>('completo');
+  const [proveedoresDB, setProveedoresDB] = useState<any[]>([])
+  const [cargando, setCargando] = useState(true)
+  const [proveedorSeleccionado, setProveedorSeleccionado] = useState<string>('TODOS')
   
-  // Estado para el formulario de nuevo proveedor
-  const [mostrarModal, setMostrarModal] = useState(false);
-  const [nuevoNombre, setNuevoNombre] = useState('');
-  const [nuevoInvertido, setNuevoInvertido] = useState('');
-  const [nuevaGanancia, setNuevaGanancia] = useState('');
+  // Control de modales y campos del formulario
+  const [mostrarModal, setMostrarModal] = useState(false)
+  const [mostrarModalExportar, setMostrarModalExportar] = useState(false)
+  const [proveedorEditando, setProveedorEditando] = useState<any | null>(null)
+  const [nombre, setNombre] = useState('')
+  const [origen, setOrigen] = useState('')
+  const [contacto, setContacto] = useState('')
+  const [telefono, setTelefono] = useState('')
+  const [email, setEmail] = useState('')
+  const [observaciones, setObservaciones] = useState('')
+  const [guardando, setGuardando] = useState(false)
 
-  const agregarProveedor = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nuevoNombre) return;
+  useEffect(() => {
+    cargarProveedores()
+  }, [])
 
-    const nuevoProv: ProveedorData = {
-      nombre: nuevoNombre.toUpperCase(),
-      totalInvertido: Number(nuevoInvertido) || 0,
-      totalGanancia: Number(nuevaGanancia) || 0,
-      productos: []
-    };
+  const cargarProveedores = async () => {
+    setCargando(true)
+    try {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('*')
+        .order('name')
 
-    setListaProveedores([...listaProveedores, nuevoProv]);
-    setNuevoNombre('');
-    setNuevoInvertido('');
-    setNuevaGanancia('');
-    setMostrarModal(false);
-  };
-
-  // Cálculos globales
-  const inversionGlobalCosto = listaProveedores.reduce((acc, p) => acc + (p.totalInvertido || 0), 0);
-  const valorGlobalVenta = listaProveedores.reduce((acc, p) => acc + ((p.totalInvertido || 0) + (p.totalGanancia || 0)), 0);
-
-  // Funciones de exportación
-  const exportarExcel = () => {
-    let contenido = "data:text/csv;charset=utf-8,";
-    contenido += "Proveedor,Producto,Cantidad,Costo,Venta,Total Invertido,Total Ganancia\n";
-    
-    const datosFiltrados = proveedorSeleccionado === 'TODOS' 
-      ? listaProveedores 
-      : listaProveedores.filter(p => p.nombre === proveedorSeleccionado);
-
-    datosFiltrados.forEach(prov => {
-      if (tipoInforme === 'completo' && prov.productos && prov.productos.length > 0) {
-        prov.productos.forEach((prod) => {
-          contenido += `"${prov.nombre}","${prod.nombre}",${prod.stock},${prod.costo},${prod.precio},, \n`;
-        });
+      if (error) {
+        console.warn('Usando fallback de productos:', error)
+        extraerDesdeProductos()
       } else {
-        contenido += `"${prov.nombre}","-","-","-","-",${prov.totalInvertido},${prov.totalGanancia}\n`;
+        setProveedoresDB(data || [])
       }
-    });
+    } catch (err) {
+      console.error('Error:', err)
+      extraerDesdeProductos()
+    } finally {
+      setCargando(false)
+    }
+  }
 
-    const encodedUri = encodeURI(contenido);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `informe_proveedores.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const extraerDesdeProductos = () => {
+    const unicos = Array.from(new Set(productosPlana.map(p => p.supplier || p.proveedor || 'General'))).sort()
+    const formateados = unicos.map((nombreProv, idx) => ({
+      id: `fallback-${idx}`,
+      name: nombreProv
+    }))
+    setProveedoresDB(formateados)
+  }
 
-  const exportarWord = () => {
-    const datosFiltrados = proveedorSeleccionado === 'TODOS' 
-      ? listaProveedores 
-      : listaProveedores.filter(p => p.nombre === proveedorSeleccionado);
+  const abrirModalNuevo = () => {
+    setProveedorEditando(null)
+    setNombre('')
+    setOrigen('')
+    setContacto('')
+    setTelefono('')
+    setEmail('')
+    setObservaciones('')
+    setMostrarModal(true)
+  }
 
-    let htmlContent = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/1999/xhtml"><body>`;
-    htmlContent += `<h1>Informe de Proveedores</h1>`;
-    
-    datosFiltrados.forEach(prov => {
-      htmlContent += `<h2>Proveedor: ${prov.nombre}</h2>`;
-      htmlContent += `<p><strong>Total Invertido:</strong> $${prov.totalInvertido} | <strong>Ganancia:</strong> $${prov.totalGanancia}</p><hr/>`;
-    });
+  const abrirModalEditar = (prov: any) => {
+    setProveedorEditando(prov)
+    setNombre(prov.name || '')
+    setOrigen(prov.address || '')
+    setContacto(prov.contact_person || '')
+    setTelefono(prov.phone || '')
+    setEmail(prov.email || '')
+    setObservaciones(prov.notes || '')
+    setMostrarModal(true)
+  }
 
-    htmlContent += `</body></html>`;
-    const blob = new Blob(['\ufeff' + htmlContent], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `informe_proveedores.doc`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const guardarProveedor = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!nombre.trim()) {
+      notificar('error', 'El nombre del proveedor es obligatorio', 'Proveedores')
+      return
+    }
 
-  const exportarPDF = () => {
-    window.print();
-  };
+    setGuardando(true)
+    try {
+      const payload = {
+        name: nombre.trim(),
+        address: origen.trim() || null,
+        contact_person: contacto.trim() || null,
+        phone: telefono.trim() || null,
+        email: email.trim() || null,
+        notes: observaciones.trim() || null
+      }
 
-  const datosFiltrados = proveedorSeleccionado === 'TODOS' 
-    ? listaProveedores 
-    : listaProveedores.filter(p => p.nombre === proveedorSeleccionado);
+      if (proveedorEditando && !String(proveedorEditando.id).startsWith('fallback-') && !String(proveedorEditando.id).startsWith('prod-')) {
+        const { error } = await supabase
+          .from('suppliers')
+          .update(payload)
+          .eq('id', proveedorEditando.id)
+
+        if (error) throw error
+        notificar('exito', `Proveedor "${nombre}" actualizado con éxito!`, 'Proveedores')
+      } else {
+        const { error } = await supabase.from('suppliers').insert(payload)
+
+        if (error) throw error
+        notificar('exito', `Proveedor "${nombre}" guardado con éxito!`, 'Proveedores')
+      }
+
+      setMostrarModal(false)
+      await cargarProveedores()
+    } catch (err: any) {
+      notificar('error', `Error al guardar: ${err.message}`, 'Error')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  // Funciones de Exportación por Formato
+  const exportarInforme = (formato: 'excel' | 'pdf' | 'word') => {
+    if (productosDelProveedor.length === 0) {
+      notificar('error', 'No hay datos para exportar', 'Exportar')
+      return
+    }
+
+    setMostrarModalExportar(false)
+    const nombreArchivo = `informe_proveedor_${proveedorSeleccionado.toLowerCase().replace(/\s+/g, '_')}`
+
+    if (formato === 'excel') {
+      const headers = ['Producto', 'Proveedor', 'Stock', 'Costo Unitario', 'Precio Venta', 'Inversion Costo', 'Valor Venta']
+      const filas = productosDelProveedor.map(p => {
+        const stock = Number(p.stock) || 0
+        const costo = Number(p.costo || p.cost_price) || 0
+        const venta = Number(p.precio || p.sale_price) || 0
+        return [
+          `"${(p.nombre || '').replace(/"/g, '""')}"`,
+          `"${(p.supplier || p.proveedor || 'General').replace(/"/g, '""')}"`,
+          stock,
+          costo,
+          venta,
+          stock * costo,
+          stock * venta
+        ].join(';')
+      })
+
+      const csvContent = '\uFEFF' + [headers.join(';'), ...filas].join('\n')
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.setAttribute('href', url)
+      link.setAttribute('download', `${nombreArchivo}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      notificar('exito', 'Informe exportado en Excel (CSV) con éxito', 'Exportar')
+    } else if (formato === 'word') {
+      let contenidoHtml = `<html><head><meta charset="utf-8"><title>Informe</title></head><body>`
+      contenidoHtml += `<h1>Informe de Proveedor: ${proveedorSeleccionado}</h1>`
+      contenidoHtml += `<p>Artículos totales: ${productosDelProveedor.length}</p>`
+      contenidoHtml += `<table border="1"><tr><th>Producto</th><th>Stock</th><th>Costo</th><th>Venta</th></tr>`
+      productosDelProveedor.forEach(p => {
+        contenidoHtml += `<tr><td>${p.nombre || ''}</td><td>${p.stock || 0}</td><td>$${p.costo || p.cost_price || 0}</td><td>$${p.precio || p.sale_price || 0}</td></tr>`
+      })
+      contenidoHtml += `</table></body></html>`
+
+      const blob = new Blob(['\ufeff' + contenidoHtml], { type: 'application/msword' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.setAttribute('href', url)
+      link.setAttribute('download', `${nombreArchivo}.doc`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      notificar('exito', 'Informe exportado en Word con éxito', 'Exportar')
+    } else if (formato === 'pdf') {
+      // Generación de ventana de impresión optimizada para PDF
+      const ventanaImpresion = window.open('', '_blank')
+      if (!ventanaImpresion) {
+        notificar('error', 'Por favor permite las ventanas emergentes (popups) para imprimir', 'Exportar')
+        return
+      }
+
+      const filasHtml = productosDelProveedor.map(p => {
+        const stock = Number(p.stock) || 0
+        const costo = Number(p.costo || p.cost_price) || 0
+        const venta = Number(p.precio || p.sale_price) || 0
+        const inversion = stock * costo
+        const valorVenta = stock * venta
+
+        return `
+          <tr>
+            <td>${p.nombre || 'Sin nombre'}</td>
+            <td style="text-align: center;">${stock} un.</td>
+            <td style="text-align: right;">$${costo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+            <td style="text-align: right;">$${venta.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+            <td style="text-align: right;">$${inversion.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+            <td style="text-align: right;">$${valorVenta.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+          </tr>
+        `
+      }).join('')
+
+      const nombreNegocioStr = (negocioActual as any)?.name || (negocioActual as any)?.nombre || 'General'
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Informe - ${proveedorSeleccionado}</title>
+            <style>
+              body { font-family: Arial, sans-serif; color: #111; padding: 20px; margin: 0; }
+              h1 { font-size: 20px; margin-bottom: 5px; text-transform: uppercase; color: #1e3a8a; }
+              .sub { font-size: 12px; color: #555; margin-bottom: 20px; }
+              .cards { display: flex; gap: 15px; margin-bottom: 20px; }
+              .card { border: 1px solid #ddd; padding: 12px; border-radius: 6px; flex: 1; background: #f9fafb; }
+              .card p { margin: 0; font-size: 11px; color: #555; font-weight: bold; }
+              .card h3 { margin: 5px 0 0 0; font-size: 15px; color: #111; }
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+              th, td { border: 1px solid #d1d5db; padding: 8px 10px; }
+              th { background-color: #f3f4f6; color: #111; text-align: left; }
+            </style>
+          </head>
+          <body>
+            <h1>Informe de Proveedor: ${proveedorSeleccionado}</h1>
+            <div class="sub">Negocio: ${nombreNegocioStr} | Fecha: ${new Date().toLocaleDateString('es-AR')} | Total Artículos: ${productosDelProveedor.length}</div>
+            
+            <div class="cards">
+              <div class="card">
+                <p>STOCK TOTAL / ARTÍCULOS</p>
+                <h3>${stockTotalProv} un. <span style="font-size: 11px; font-weight: normal; color: #555;">(${productosDelProveedor.length} art.)</span></h3>
+              </div>
+              <div class="card">
+                <p>INVERSIÓN TOTAL (COSTO)</p>
+                <h3>$${inversionProv.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</h3>
+              </div>
+              <div class="card">
+                <p>VALOR DE VENTA</p>
+                <h3>$${ventaProv.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</h3>
+              </div>
+              <div class="card">
+                <p>GANANCIA PROYECTADA</p>
+                <h3 style="color: #059669;">$${gananciaProv.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</h3>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th style="text-align: center;">Stock</th>
+                  <th style="text-align: right;">Costo U.</th>
+                  <th style="text-align: right;">Venta U.</th>
+                  <th style="text-align: right;">Inversión Total</th>
+                  <th style="text-align: right;">Valor Venta Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filasHtml}
+              </tbody>
+            </table>
+            
+            <script>
+              window.onload = function() {
+                window.print();
+                window.close();
+              }
+            </script>
+          </body>
+        </html>
+      `
+
+      ventanaImpresion.document.write(htmlContent)
+      ventanaImpresion.document.close()
+      notificar('exito', 'Generando documento PDF del informe', 'Exportar')
+    }
+  }
+
+  // Combinar proveedores de la DB con los de los productos
+  const nombresProveedoresMap = new Map()
+  proveedoresDB.forEach(p => nombresProveedoresMap.set(p.name.toLowerCase(), p))
+  productosPlana.forEach(p => {
+    const sp = p.supplier || p.proveedor || 'General'
+    if (!nombresProveedoresMap.has(sp.toLowerCase())) {
+      nombresProveedoresMap.set(sp.toLowerCase(), { id: `prod-${sp}`, name: sp })
+    }
+  })
+
+  const listaProveedoresTotal = Array.from(nombresProveedoresMap.values())
+
+  // Filtrar productos según la selección
+  const productosDelProveedor = proveedorSeleccionado === 'TODOS'
+    ? productosPlana
+    : productosPlana.filter(
+        p => (p.supplier || p.proveedor || 'General').toLowerCase() === proveedorSeleccionado.toLowerCase()
+      )
+
+  // Totales globales
+  const inversionTotalGlobal = productosPlana.reduce((acc, p) => acc + (Number(p.stock) || 0) * (Number(p.costo || p.cost_price) || 0), 0)
+  const gananciaTotalGlobal = productosPlana.reduce((acc, p) => {
+    const stock = Number(p.stock) || 0
+    const costo = Number(p.costo || p.cost_price) || 0
+    const venta = Number(p.precio || p.sale_price) || 0
+    return acc + (stock * (venta - costo))
+  }, 0)
+
+  // Métricas del filtro actual
+  const stockTotalProv = productosDelProveedor.reduce((acc, p) => acc + (Number(p.stock) || 0), 0)
+  const inversionProv = productosDelProveedor.reduce((acc, p) => acc + (Number(p.stock) || 0) * (Number(p.costo || p.cost_price) || 0), 0)
+  const ventaProv = productosDelProveedor.reduce((acc, p) => acc + (Number(p.stock) || 0) * (Number(p.precio || p.sale_price) || 0), 0)
+  const gananciaProv = ventaProv - inversionProv
+
+  const proveedorObjActual = listaProveedoresTotal.find((p: any) => p.name.toLowerCase() === proveedorSeleccionado.toLowerCase())
 
   return (
-    <div className="p-6 bg-[#121212] min-h-screen text-white">
-      {/* Cabecera y Botones */}
-      <div className="max-w-4xl mx-auto mb-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <span>🚚</span> Resumen y Catálogo por Proveedor
-            </h1>
-            <p className="text-gray-400 text-sm mt-1">
-              Totales acumulados de stock, inversión en costo y valor proyectado de venta por proveedor
-            </p>
-          </div>
-
-          {/* Acciones */}
-          <div className="flex gap-2 flex-wrap">
-            <button 
-              onClick={() => setMostrarModal(true)} 
-              className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition"
-            >
-              + Nuevo Proveedor
-            </button>
-            <button onClick={exportarExcel} className="bg-green-700 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
-              Excel
-            </button>
-            <button onClick={exportarWord} className="bg-blue-700 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
-              Word
-            </button>
-            <button onClick={exportarPDF} className="bg-red-700 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
-              PDF
-            </button>
-          </div>
+    <div className="space-y-6">
+      {/* Cabecera y Botón Nuevo Proveedor */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-blue-600/20 to-indigo-600/20 backdrop-blur-md rounded-2xl p-5 border border-blue-500/30">
+        <div>
+          <h2 className="text-2xl font-black text-white">🚚 Gestión de Proveedores</h2>
+          <p className="text-blue-200/80 text-sm mt-1">Administrá el stock, costos y ganancias de tus proveedores.</p>
         </div>
-
-        {/* Tarjeta Global con Filtros */}
-        <div className="bg-[#1A1A1A] border border-gray-800 rounded-2xl p-5 mb-6 shadow-lg grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wider">Filtrar Proveedor:</label>
-            <select 
-              value={proveedorSeleccionado} 
-              onChange={(e) => setProveedorSeleccionado(e.target.value)}
-              className="w-full bg-[#262626] border border-gray-700 text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-purple-500"
-            >
-              <option value="TODOS">Todos los proveedores ({listaProveedores.length})</option>
-              {listaProveedores.map((p, idx) => (
-                <option key={idx} value={p.nombre}>{p.nombre}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <span className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Inversión Global (Costo):</span>
-            <span className="text-xl font-bold text-amber-400">
-              ${inversionGlobalCosto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-
-          <div>
-            <span className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Valor Global (Venta):</span>
-            <span className="text-xl font-bold text-emerald-400">
-              ${valorGlobalVenta.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-        </div>
+        <button
+          onClick={abrirModalNuevo}
+          className="bg-blue-600 hover:bg-blue-500 text-white font-black px-5 py-3 rounded-xl text-sm transition shadow-lg shadow-blue-900/40 cursor-pointer flex items-center gap-2"
+        >
+          ➕ Nuevo Proveedor
+        </button>
       </div>
 
-      {/* Modal para Cargar Proveedor */}
+      {/* Modal de Registro / Edición */}
       {mostrarModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1A1A1A] border border-gray-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <h3 className="text-lg font-bold mb-4 text-white">Registrar Nuevo Proveedor</h3>
-            <form onSubmit={agregarProveedor} className="space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-neutral-900 border border-white/10 rounded-3xl p-6 w-full max-w-lg space-y-5 shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+              <h3 className="font-black text-white text-lg">
+                {proveedorEditando ? '✏️ Editar Proveedor' : '➕ Registrar Nuevo Proveedor'}
+              </h3>
+              <button
+                onClick={() => setMostrarModal(false)}
+                className="text-neutral-400 hover:text-white font-bold text-lg px-2 py-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={guardarProveedor} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-neutral-400">Nombre / Empresa *</label>
+                  <input
+                    type="text"
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    placeholder="Ej: MARISOL"
+                    className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm mt-1 focus:outline-none focus:border-blue-500"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-neutral-400">Ciudad / Origen (Address)</label>
+                  <input
+                    type="text"
+                    value={origen}
+                    onChange={(e) => setOrigen(e.target.value)}
+                    placeholder="Ej: PERICO, JUJUY"
+                    className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm mt-1 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-neutral-400">Nombre de Contacto</label>
+                  <input
+                    type="text"
+                    value={contacto}
+                    onChange={(e) => setContacto(e.target.value)}
+                    placeholder="Ej: MARISOL RAMIREZ"
+                    className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm mt-1 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-neutral-400">Teléfono / WhatsApp</label>
+                  <input
+                    type="text"
+                    value={telefono}
+                    onChange={(e) => setTelefono(e.target.value)}
+                    placeholder="11 2345-6789"
+                    className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm mt-1 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Nombre del Proveedor:</label>
-                <input 
-                  type="text" 
-                  value={nuevoNombre} 
-                  onChange={(e) => setNuevoNombre(e.target.value)}
-                  placeholder="Ej: MATI"
-                  required
-                  className="w-full bg-[#262626] border border-gray-700 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                <label className="text-xs font-bold text-neutral-400">Correo Electrónico</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="contacto@proveedor.com"
+                  className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm mt-1 focus:outline-none focus:border-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Total Invertido (Costo):</label>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  value={nuevoInvertido} 
-                  onChange={(e) => setNuevoInvertido(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full bg-[#262626] border border-gray-700 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
+                <label className="text-xs font-bold text-neutral-400">Observaciones</label>
+                <textarea
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                  placeholder="Días de visita, horarios, notas..."
+                  className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white text-sm mt-1 resize-none h-20 focus:outline-none focus:border-blue-500"
                 />
               </div>
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Ganancia Proyectada:</label>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  value={nuevaGanancia} 
-                  onChange={(e) => setNuevaGanancia(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full bg-[#262626] border border-gray-700 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button 
-                  type="button" 
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
                   onClick={() => setMostrarModal(false)}
-                  className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-xl text-xs font-semibold"
+                  className="w-1/2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold py-3 rounded-xl text-sm transition cursor-pointer"
                 >
                   Cancelar
                 </button>
-                <button 
+                <button
                   type="submit"
-                  className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-xs font-semibold"
+                  disabled={guardando}
+                  className="w-1/2 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl text-sm transition shadow-lg shadow-blue-900/30 cursor-pointer"
                 >
-                  Guardar
+                  {guardando ? 'Guardando...' : proveedorEditando ? '💾 Actualizar' : '💾 Guardar'}
                 </button>
               </div>
             </form>
@@ -250,72 +437,172 @@ export const ProveedoresView: React.FC<ProveedoresViewProps> = ({ proveedoresDat
         </div>
       )}
 
-      {/* Listado de Proveedores en Estilo Tarjeta Oscura */}
-      <div className="max-w-4xl mx-auto space-y-6">
-        {datosFiltrados.map((prov, index) => {
-          const stockTotalProv = prov.productos?.reduce((acc, p) => acc + (p.stock || 0), 0) || 0;
-          const valorVentaProv = prov.productos?.reduce((acc, p) => acc + ((p.precio || 0) * (p.stock || 0)), 0) || (prov.totalInvertido + prov.totalGanancia);
-
-          return (
-            <div key={index} className="bg-[#1A1A1A] border border-gray-800 rounded-2xl p-6 shadow-xl">
-              <div className="flex justify-between items-center border-b border-gray-800 pb-4 mb-4">
-                <h2 className="text-xl font-black tracking-wide text-white uppercase">{prov.nombre}</h2>
-                <span className="bg-[#2A2235] text-purple-300 border border-purple-900/50 text-xs font-bold px-3 py-1 rounded-full">
-                  {prov.productos?.length || 0} artículos
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 bg-[#212121] p-4 rounded-xl border border-gray-800/60 mb-6">
-                <div>
-                  <span className="text-xs text-gray-400 block mb-0.5">Stock Total:</span>
-                  <span className="text-base font-bold text-white">{stockTotalProv} un.</span>
-                </div>
-                <div>
-                  <span className="text-xs text-gray-400 block mb-0.5">Ganancia Proy.:</span>
-                  <span className="text-base font-bold text-emerald-400">
-                    ${(prov.totalGanancia || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-xs text-gray-400 block mb-0.5">Inversión (Costo):</span>
-                  <span className="text-base font-bold text-white">
-                    ${(prov.totalInvertido || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-xs text-gray-400 block mb-0.5">Valor de Venta:</span>
-                  <span className="text-base font-bold text-emerald-400">
-                    ${valorVentaProv.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
-
-              {prov.productos && prov.productos.length > 0 && (
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Detalle de Productos:</h3>
-                  <div className="space-y-2">
-                    {prov.productos.map((prod, pIdx) => (
-                      <div key={pIdx} className="bg-[#212121] border border-gray-800/50 p-3 rounded-xl flex justify-between items-center text-sm">
-                        <div>
-                          <p className="font-semibold text-white">{prod.nombre}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            Costo: ${prod.costo} <span className="text-gray-600">|</span> Venta: ${prod.precio}
-                          </p>
-                        </div>
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${prod.stock > 0 ? 'bg-[#1E2923] text-emerald-400 border border-emerald-900/30' : 'bg-[#2E1F23] text-rose-400 border border-rose-900/30'}`}>
-                          {prod.stock} un.
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+      {/* Modal de Selección de Formato de Exportación */}
+      {mostrarModalExportar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-neutral-900 border border-white/10 rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+              <h3 className="font-black text-white text-base">📥 Seleccionar Formato</h3>
+              <button
+                onClick={() => setMostrarModalExportar(false)}
+                className="text-neutral-400 hover:text-white font-bold text-lg px-2 py-1 cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
-          );
-        })}
+            <p className="text-xs text-neutral-400">
+              Elegí el formato en el que deseás descargar el informe de <span className="text-white font-bold">{proveedorSeleccionado}</span>:
+            </p>
+            <div className="space-y-2 pt-1">
+              <button
+                onClick={() => exportarInforme('excel')}
+                className="w-full bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 p-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>📊</span> Excel / CSV (.csv)
+              </button>
+              <button
+                onClick={() => exportarInforme('word')}
+                className="w-full bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 p-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>📄</span> Word (.doc)
+              </button>
+              <button
+                onClick={() => exportarInforme('pdf')}
+                className="w-full bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 p-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>📑</span> PDF (Generar Informe)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sección de Selección y Tarjeta Global */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Selector Desplegable */}
+        <div className="lg:col-span-1 bg-neutral-900/60 backdrop-blur-md rounded-2xl border border-white/10 p-5 space-y-3 flex flex-col justify-between">
+          <div>
+            <h3 className="font-black text-white text-lg">📋 Seleccionar Proveedor</h3>
+            <p className="text-xs text-neutral-400 mt-1">Elegí uno en particular o visualizá a todos juntos.</p>
+          </div>
+          <select
+            value={proveedorSeleccionado}
+            onChange={(e) => setProveedorSeleccionado(e.target.value)}
+            className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-sm focus:outline-none focus:border-blue-500 cursor-pointer"
+          >
+            <option value="TODOS">📋 Todos los Proveedores</option>
+            {listaProveedoresTotal.map((p: any) => (
+              <option key={p.id} value={p.name}>
+                🏷️ {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Tarjeta Global con Totales de Costo y Ganancias */}
+        <div className="lg:col-span-2 bg-gradient-to-r from-neutral-900/80 to-blue-950/40 backdrop-blur-md rounded-2xl border border-blue-500/20 p-5 flex flex-col justify-between">
+          <div>
+            <h3 className="font-black text-white text-lg flex items-center gap-2">
+              📊 Resumen Global (Todos los Proveedores)
+            </h3>
+            <p className="text-xs text-neutral-400 mt-1">Suma acumulada de inventario de toda la red de proveedores.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-white/10">
+            <div>
+              <p className="text-xs text-neutral-400 font-bold">Inversión Total (Costo):</p>
+              <p className="text-xl font-black text-white mt-0.5">
+                ${inversionTotalGlobal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-neutral-400 font-bold">Ganancia Total Proyectada:</p>
+              <p className="text-xl font-black text-emerald-400 mt-0.5">
+                ${gananciaTotalGlobal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Detalle y Estadísticas del Proveedor Seleccionado o Todos */}
+      <div className="bg-neutral-900/60 backdrop-blur-md rounded-3xl border border-white/10 p-6 space-y-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/10 pb-4">
+          <div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h3 className="text-2xl font-black text-white">
+                {proveedorSeleccionado === 'TODOS' ? '🌐 Todos los Proveedores' : proveedorSeleccionado}
+              </h3>
+              
+              <div className="flex items-center gap-2">
+                {proveedorSeleccionado !== 'TODOS' && proveedorObjActual && (
+                  <button
+                    onClick={() => abrirModalEditar(proveedorObjActual)}
+                    className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1"
+                  >
+                    <span>✏️</span> Editar Proveedor
+                  </button>
+                )}
+                <button
+                  onClick={() => setMostrarModalExportar(true)}
+                  className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1"
+                >
+                  <span>📥</span> Exportar Informe
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-neutral-400 mt-1">Resumen financiero y stock de los artículos filtrados</p>
+          </div>
+          <div className="bg-blue-500/20 border border-blue-500/30 text-blue-300 px-4 py-1.5 rounded-xl text-xs font-black">
+            {productosDelProveedor.length} artículos
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-neutral-950/60 p-4 rounded-2xl border border-white/5">
+            <p className="text-xs text-neutral-400 font-bold">Stock Total / Artículos:</p>
+            <p className="text-xl font-black text-white mt-1">{stockTotalProv} un. <span className="text-xs text-neutral-400 font-normal">({productosDelProveedor.length} art.)</span></p>
+          </div>
+          <div className="bg-neutral-950/60 p-4 rounded-2xl border border-white/5">
+            <p className="text-xs text-neutral-400 font-bold">Inversión (Costo):</p>
+            <p className="text-xl font-black text-neutral-200 mt-1">${inversionProv.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+          </div>
+          <div className="bg-neutral-950/60 p-4 rounded-2xl border border-white/5">
+            <p className="text-xs text-neutral-400 font-bold">Valor de Venta:</p>
+            <p className="text-xl font-black text-emerald-400 mt-1">${ventaProv.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+          </div>
+          <div className="bg-neutral-950/60 p-4 rounded-2xl border border-white/5">
+            <p className="text-xs text-neutral-400 font-bold">Ganancia Proy.:</p>
+            <p className="text-xl font-black text-emerald-400 mt-1">${gananciaProv.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <h4 className="text-xs font-black text-neutral-400 uppercase tracking-wider">Detalle de Productos:</h4>
+          <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+            {productosDelProveedor.map((prod: any) => (
+              <div key={prod.id} className="bg-neutral-950/60 border border-white/5 rounded-2xl p-4 flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-white text-sm truncate">{prod.nombre}</p>
+                    <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-md font-bold uppercase shrink-0">
+                      {prod.supplier || prod.proveedor || 'General'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-400 mt-0.5">
+                    Costo: ${Number(prod.costo || prod.cost_price || 0).toLocaleString('es-AR')} • Venta: <span className="text-emerald-400 font-bold">${Number(prod.precio || prod.sale_price || 0).toLocaleString('es-AR')}</span>
+                  </p>
+                </div>
+                <div className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl text-xs font-black text-white shrink-0">
+                  {prod.stock} un.
+                </div>
+              </div>
+            ))}
+            {productosDelProveedor.length === 0 && (
+              <p className="text-neutral-500 text-sm text-center py-6">No hay productos asociados.</p>
+            )}
+          </div>
+        </div>
       </div>
     </div>
-  );
-};
-
-export default ProveedoresView;
+  )
+}

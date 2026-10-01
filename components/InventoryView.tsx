@@ -24,6 +24,7 @@ export default function InventoryView({
   minStockProd, setMinStockProd,
   codigoProd, setCodigoProd,
   proveedorProd, setProveedorProd,
+  onAbrirModalProveedor,
   categoriaProd, setCategoriaProd,
   categoriasDB,
   categoriaNuevaInput, setCategoriaNuevaInput,
@@ -36,35 +37,52 @@ export default function InventoryView({
   const [camaraActiva, setCamaraActiva] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
 
-  // Estado del flujo inteligente de escaneo: 'idle' | 'actualizar' | 'crear'
+  const [listaProveedoresFinal, setListaProveedoresFinal] = useState<any[]>([])
+
+  useEffect(() => {
+    async function obtenerProveedoresDirectos() {
+      try {
+        const res = await fetch('/api/proveedores')
+        if (res.ok) {
+          const data = await res.json()
+          if (Array.isArray(data)) {
+            setListaProveedoresFinal(data)
+          } else if (data && Array.isArray(data.proveedores)) {
+            setListaProveedoresFinal(data.proveedores)
+          } else if (data && Array.isArray(data.data)) {
+            setListaProveedoresFinal(data.data)
+          }
+        }
+      } catch (err) {
+        console.error('Error al cargar proveedores:', err)
+      }
+    }
+    obtenerProveedoresDirectos()
+  }, [])
+
   const [modoEscaneo, setModoEscaneo] = useState<'idle' | 'actualizar' | 'crear'>('idle')
   const [mensajeAlerta, setMensajeAlerta] = useState<string | null>(null)
   const [cantidadASumar, setCantidadASumar] = useState<string>('')
 
-  // Estados para el autocompletado en el input de nombre
   const [mostrarSugerenciasNombre, setMostrarSugerenciasNombre] = useState(false)
   const containerNombreRef = useRef<HTMLDivElement>(null)
 
-  // Referencias para auto-foco rápido sin usar el mouse
   const inputNombreRef = useRef<HTMLInputElement>(null)
   const inputStockRef = useRef<HTMLInputElement>(null)
   const inputPrecioRef = useRef<HTMLInputElement>(null)
   const inputSkuRef = useRef<HTMLInputElement>(null)
 
-  // Mantener una referencia actualizada de camaraActiva para el atajo de teclado
   const camaraActivaRef = useRef(camaraActiva)
   useEffect(() => {
     camaraActivaRef.current = camaraActiva
   }, [camaraActiva])
 
-  // Foco inicial en el SKU
   useEffect(() => {
     if (inputSkuRef.current) {
       inputSkuRef.current.focus()
     }
   }, [])
 
-  // Cerrar sugerencias de nombre al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerNombreRef.current && !containerNombreRef.current.contains(e.target as Node)) {
@@ -75,7 +93,6 @@ export default function InventoryView({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Atajo de teclado global único (Alt + C)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.key.toLowerCase() === 'c') {
@@ -87,14 +104,10 @@ export default function InventoryView({
         }
       }
     }
-
     window.addEventListener('keydown', handleGlobalKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleGlobalKeyDown)
-    }
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
   }, [])
 
-  // Sincronizar modo si el usuario cancela la edición desde el botón del formulario
   useEffect(() => {
     if (!productoAEditar && modoEscaneo !== 'idle') {
       setModoEscaneo('idle')
@@ -103,15 +116,12 @@ export default function InventoryView({
     }
   }, [productoAEditar])
 
-  // Cerrar el desplegable de "Coincidencias en Inventario" apenas se entra en modo edición,
-  // sin importar si se disparó desde una sugerencia, la tabla de abajo, o un código escaneado.
   useEffect(() => {
     if (productoAEditar) {
       setMostrarSugerenciasNombre(false)
     }
   }, [productoAEditar])
 
-  // Sonido de confirmación con Web Audio API
   const emitirBeepConfirmacion = () => {
     try {
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
@@ -125,15 +135,11 @@ export default function InventoryView({
       gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.12)
       osc.start()
       osc.stop(audioCtx.currentTime + 0.12)
-    } catch {
-      // Audio no permitido o silenciado
-    }
+    } catch {}
   }
 
-  // Lógica principal: procesar código escaneado o ingresado
   const procesarCodigoEscaneado = (codigoLimpio: string) => {
     if (!codigoLimpio) return
-
     emitirBeepConfirmacion()
 
     const productoExistente = productosInventario.find(
@@ -143,7 +149,7 @@ export default function InventoryView({
     )
 
     if (productoExistente) {
-      setMostrarSugerenciasNombre(false) // Forzar cierre de sugerencias
+      setMostrarSugerenciasNombre(false)
       cargarProductoEnFormulario(productoExistente)
       setModoEscaneo('actualizar')
       setMensajeAlerta(`Producto encontrado: "${productoExistente.name}". Modo actualización rápido activado.`)
@@ -174,9 +180,7 @@ export default function InventoryView({
     if (e.key === 'Enter') {
       e.preventDefault()
       const codigo = codigoProd.trim()
-      if (codigo) {
-        procesarCodigoEscaneado(codigo)
-      }
+      if (codigo) procesarCodigoEscaneado(codigo)
     }
   }
 
@@ -187,27 +191,20 @@ export default function InventoryView({
       const nuevoStock = Math.max(0, stockActualNum + num)
       setStockProd(nuevoStock.toString())
       setCantidadASumar('')
-      if (inputPrecioRef.current) {
-        inputPrecioRef.current.focus()
-      }
+      if (inputPrecioRef.current) inputPrecioRef.current.focus()
     }
   }
 
   const iniciarCamara = async () => {
     try {
       setCamaraActiva(true)
-
       setTimeout(async () => {
         try {
           const scanner = new Html5Qrcode('reader-container-inv')
           scannerRef.current = scanner
-
           await scanner.start(
             { facingMode: 'environment' },
-            {
-              fps: 15,
-              qrbox: { width: 280, height: 140 }
-            },
+            { fps: 15, qrbox: { width: 280, height: 140 } },
             (decodedText) => {
               const codigo = decodedText.trim()
               if (codigo) {
@@ -219,13 +216,11 @@ export default function InventoryView({
             () => {}
           )
         } catch (err) {
-          console.error('Error al iniciar html5-qrcode en inventario:', err)
           detenerCamara()
           notificar('error', 'No se pudo acceder a la cámara.', 'Cámara')
         }
       }, 150)
-    } catch (err) {
-      console.error(err)
+    } catch {
       setCamaraActiva(false)
       notificar('error', 'Error al solicitar permisos de cámara.', 'Cámara')
     }
@@ -236,9 +231,7 @@ export default function InventoryView({
       try {
         await scannerRef.current.stop()
         scannerRef.current.clear()
-      } catch (err) {
-        console.error('Error deteniendo cámara:', err)
-      }
+      } catch {}
       scannerRef.current = null
     }
     setCamaraActiva(false)
@@ -250,12 +243,9 @@ export default function InventoryView({
     setMensajeAlerta(null)
     setCantidadASumar('')
     setMostrarSugerenciasNombre(false)
-    if (inputSkuRef.current) {
-      inputSkuRef.current.focus()
-    }
+    if (inputSkuRef.current) inputSkuRef.current.focus()
   }
 
-  // Filtrar productos para el autocompletado del nombre (solo si no estamos editando)
   const productosFiltradosPorNombre = !productoAEditar && nombreProd && nombreProd.trim().length > 0 && productosInventario
     ? productosInventario.filter((p: any) => 
         p.name && p.name.toLowerCase().includes(nombreProd.trim().toLowerCase())
@@ -267,14 +257,11 @@ export default function InventoryView({
     cargarProductoEnFormulario(prod)
     setModoEscaneo('actualizar')
     setMensajeAlerta(`Editando producto seleccionado: "${prod.name}".`)
-    if (inputStockRef.current) {
-      inputStockRef.current.focus()
-    }
+    if (inputStockRef.current) inputStockRef.current.focus()
   }
 
   return (
     <div className="space-y-6">
-      {/* MODAL DEL ESCÁNER DE CÁMARA */}
       {camaraActiva && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-neutral-900 border border-white/10 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
@@ -289,15 +276,10 @@ export default function InventoryView({
                 ✕
               </button>
             </div>
-
-            <p className="text-xs text-neutral-400">
-              Apuntá con la cámara al código de barras o QR del producto.
-            </p>
-
+            <p className="text-xs text-neutral-400">Apuntá con la cámara al código de barras o QR del producto.</p>
             <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black aspect-video flex items-center justify-center">
               <div id="reader-container-inv" className="w-full h-full"></div>
             </div>
-
             <button
               onClick={detenerCamara}
               className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition-all"
@@ -308,7 +290,6 @@ export default function InventoryView({
         </div>
       )}
 
-      {/* FORMULARIO DE PRODUCTO CON FLUJO INTELIGENTE */}
       <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-6 shadow-xl backdrop-blur-md">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
           <div>
@@ -320,7 +301,6 @@ export default function InventoryView({
               Buscá por nombre o escaneá el código para evitar duplicados y actualizar al instante.
             </p>
           </div>
-
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -338,7 +318,6 @@ export default function InventoryView({
           </div>
         </div>
 
-        {/* ALERTA VISUAL DE MODO INTELIGENTE */}
         {mensajeAlerta && (
           <div
             className={`p-4 rounded-2xl border mb-5 text-sm flex items-center justify-between animate-fadeIn transition-all ${
@@ -356,17 +335,13 @@ export default function InventoryView({
                 <p className="text-xs opacity-90">{mensajeAlerta}</p>
               </div>
             </div>
-            <button
-              onClick={() => setMensajeAlerta(null)}
-              className="text-xs opacity-60 hover:opacity-100 font-bold px-2 py-1"
-            >
+            <button onClick={() => setMensajeAlerta(null)} className="text-xs opacity-60 hover:opacity-100 font-bold px-2 py-1">
               ✕
             </button>
           </div>
         )}
 
         <form onSubmit={guardarProducto} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* CÓDIGO DE BARRAS / SKU */}
           <div className="space-y-1">
             <div className="flex justify-between items-center">
               <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
@@ -388,22 +363,18 @@ export default function InventoryView({
                 type="button"
                 onClick={generarCodigoAutomatico}
                 className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-300 rounded-xl text-xs font-bold transition-all shrink-0"
-                title="Generar código automático"
               >
                 🎲 Auto
               </button>
             </div>
           </div>
 
-          {/* NOMBRE CON BUSCADOR / AUTOCOMPLETE FLOTANTE (Bloqueado al editar) */}
           <div className="space-y-1 relative" ref={containerNombreRef}>
             <div className="flex justify-between items-center">
               <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
                 Nombre del Producto *
               </label>
-              {!productoAEditar && (
-                <span className="text-[10px] text-violet-400 font-bold">Buscá para evitar duplicados</span>
-              )}
+              {!productoAEditar && <span className="text-[10px] text-violet-400 font-bold">Buscá para evitar duplicados</span>}
             </div>
             <input
               ref={inputNombreRef}
@@ -412,20 +383,15 @@ export default function InventoryView({
               value={nombreProd}
               onChange={(e) => {
                 setNombreProd(e.target.value)
-                if (!productoAEditar) {
-                  setMostrarSugerenciasNombre(true)
-                }
+                if (!productoAEditar) setMostrarSugerenciasNombre(true)
               }}
               onFocus={() => {
-                if (!productoAEditar) {
-                  setMostrarSugerenciasNombre(true)
-                }
+                if (!productoAEditar) setMostrarSugerenciasNombre(true)
               }}
               className="w-full bg-neutral-950 border border-violet-500/50 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-400 shadow-lg shadow-violet-950/20"
               required
             />
 
-            {/* DROPDOWN FLOTANTE ABSOLUTO (Garantizado que no se muestra si productoAEditar está activo) */}
             {!productoAEditar && mostrarSugerenciasNombre && productosFiltradosPorNombre.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-neutral-900/95 border border-violet-500/40 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-2xl">
                 <div className="p-2.5 bg-violet-600/20 border-b border-white/10 text-[10px] font-black text-violet-300 uppercase tracking-wider flex items-center justify-between">
@@ -440,9 +406,7 @@ export default function InventoryView({
                       className="p-3 hover:bg-violet-600/10 cursor-pointer flex items-center justify-between transition-colors group"
                     >
                       <div>
-                        <p className="text-xs font-bold text-white group-hover:text-violet-300 transition-colors">
-                          {prod.name}
-                        </p>
+                        <p className="text-xs font-bold text-white group-hover:text-violet-300 transition-colors">{prod.name}</p>
                         <p className="text-[10px] text-neutral-400 font-mono mt-0.5">
                           SKU: {prod.barcode || prod.sku || 'S/C'} • Stock: <span className="text-emerald-400 font-bold">{prod.stock} u.</span> • <span className="text-violet-400">${Number(prod.sale_price || 0).toLocaleString('es-AR')}</span>
                         </p>
@@ -457,7 +421,6 @@ export default function InventoryView({
             )}
           </div>
 
-          {/* PRECIO DE VENTA */}
           <div className="space-y-1">
             <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
               Precio de Venta ($) *
@@ -474,7 +437,6 @@ export default function InventoryView({
             />
           </div>
 
-          {/* COSTO DE COMPRA */}
           <div className="space-y-1">
             <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
               Costo de Compra ($)
@@ -489,15 +451,10 @@ export default function InventoryView({
             />
           </div>
 
-          {/* STOCK ACTUAL + SUMADOR RÁPIDO */}
           <div className="space-y-1">
             <div className="flex justify-between items-center">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
-                Stock Actual
-              </label>
-              {modoEscaneo === 'actualizar' && (
-                <span className="text-[10px] text-emerald-400 font-bold">Sumar stock</span>
-              )}
+              <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Stock Actual</label>
+              {modoEscaneo === 'actualizar' && <span className="text-[10px] text-emerald-400 font-bold">Sumar stock</span>}
             </div>
             <div className="flex gap-2">
               <input
@@ -535,7 +492,6 @@ export default function InventoryView({
             </div>
           </div>
 
-          {/* STOCK MÍNIMO */}
           <div className="space-y-1">
             <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
               Stock Mínimo (Alerta)
@@ -549,21 +505,48 @@ export default function InventoryView({
             />
           </div>
 
-          {/* PROVEEDOR */}
           <div className="space-y-1">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
-              Proveedor
-            </label>
-            <input
-              type="text"
-              placeholder="Ej: Distribuidora Norte..."
-              value={proveedorProd}
+            <div className="flex justify-between items-center">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                Proveedor
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onAbrirModalProveedor) {
+                    onAbrirModalProveedor()
+                  } else {
+                    notificar('info', 'Función de modal externo no conectada. Abrí el módulo Proveedores.', 'Aviso')
+                  }
+                }}
+                className="text-[10px] text-violet-400 hover:text-violet-300 font-bold flex items-center gap-1 transition-colors"
+                title="Crear un proveedor nuevo"
+              >
+                + Nuevo Proveedor
+              </button>
+            </div>
+            <select
+              value={proveedorProd || ''}
               onChange={(e) => setProveedorProd(e.target.value)}
-              className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
-            />
+              className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500 cursor-pointer"
+            >
+              <option value="">Seleccioná un proveedor...</option>
+              {listaProveedoresFinal && listaProveedoresFinal.length > 0 ? (
+                listaProveedoresFinal.map((prov: any, index: number) => {
+                  const nombreProveedor = typeof prov === 'string' ? prov : (prov.name || prov.nombre || `Proveedor ${index + 1}`);
+                  const idProveedor = prov.id || nombreProveedor;
+                  return (
+                    <option key={idProveedor} value={nombreProveedor}>
+                      {nombreProveedor}
+                    </option>
+                  );
+                })
+              ) : (
+                <option value="" disabled>Cargando proveedores...</option>
+              )}
+            </select>
           </div>
 
-          {/* CATEGORÍA */}
           <div className="space-y-1">
             <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
               Categoría
@@ -583,7 +566,6 @@ export default function InventoryView({
             </select>
           </div>
 
-          {/* NUEVA CATEGORÍA RÁPIDA */}
           <div className="space-y-1">
             <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
               Nueva Categoría Rápida
@@ -606,7 +588,6 @@ export default function InventoryView({
             </div>
           </div>
 
-          {/* BOTONES DE ACCIÓN */}
           <div className="md:col-span-3 flex justify-end items-center gap-3 pt-2">
             {productoAEditar && (
               <button
@@ -623,28 +604,26 @@ export default function InventoryView({
               disabled={guardandoProducto}
               className="px-8 py-2.5 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-black text-xs rounded-xl shadow-lg shadow-violet-900/40 transition-all disabled:opacity-50"
             >
-              {guardandoProducto
-                ? 'Guardando...'
-                : productoAEditar
-                ? 'Actualizar Producto'
-                : 'Guardar Producto'}
+              {guardandoProducto ? 'Guardando...' : productoAEditar ? 'Actualizar Producto' : 'Guardar Producto'}
             </button>
           </div>
         </form>
       </div>
 
-      {/* LISTADO DE ARTÍCULOS */}
       <div className="bg-neutral-900/60 border border-white/10 rounded-3xl p-6 shadow-xl backdrop-blur-md">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
           <div>
-            <h3 className="text-lg font-black text-white flex items-center gap-2">
-              <span>📋</span> Listado de Artículos
-            </h3>
-            <p className="text-xs text-neutral-400">
-              Podés editar stock o precio directamente haciendo clic en los valores.
-            </p>
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-black text-white flex items-center gap-2">
+                <span>📋</span> Listado de Artículos
+              </h3>
+              {/* CONTABILIZADOR DE PRODUCTOS CARGADOS */}
+              <span className="px-2.5 py-1 bg-violet-500/10 border border-violet-500/30 text-violet-300 rounded-xl text-xs font-black tracking-wide">
+                {productosInventario ? productosInventario.length : 0} {productosInventario?.length === 1 ? 'producto' : 'productos'}
+              </span>
+            </div>
+            <p className="text-xs text-neutral-400 mt-0.5">Podés editar stock o precio directamente haciendo clic en los valores.</p>
           </div>
-
           <div className="w-full sm:w-72">
             <input
               type="text"
@@ -657,9 +636,7 @@ export default function InventoryView({
         </div>
 
         {productosInventario && productosInventario.length === 0 ? (
-          <div className="text-center py-12 text-neutral-500 text-xs">
-            No se encontraron productos en el inventario.
-          </div>
+          <div className="text-center py-12 text-neutral-500 text-xs">No se encontraron productos en el inventario.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -681,28 +658,14 @@ export default function InventoryView({
                     const esBajo = p.min_stock && p.stock <= p.min_stock
                     return (
                       <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3 px-3 font-mono text-neutral-400">
-                          {p.barcode || p.sku || '-'}
-                        </td>
+                        <td className="py-3 px-3 font-mono text-neutral-400">{p.barcode || p.sku || '-'}</td>
                         <td className="py-3 px-3 font-bold text-white">{p.name}</td>
-                        <td className="py-3 px-3 text-neutral-400">
-                          {p.product_categories?.name || p.category || 'General'}
-                        </td>
+                        <td className="py-3 px-3 text-neutral-400">{p.product_categories?.name || p.category || 'General'}</td>
                         <td className="py-3 px-3 text-neutral-400">{p.supplier || '-'}</td>
-                        <td className="py-3 px-3 text-neutral-400">
-                          ${Number(p.cost_price || 0).toLocaleString('es-AR')}
-                        </td>
-                        <td className="py-3 px-3 font-bold text-emerald-400">
-                          ${Number(p.sale_price || 0).toLocaleString('es-AR')}
-                        </td>
+                        <td className="py-3 px-3 text-neutral-400">${Number(p.cost_price || 0).toLocaleString('es-AR')}</td>
+                        <td className="py-3 px-3 font-bold text-emerald-400">${Number(p.sale_price || 0).toLocaleString('es-AR')}</td>
                         <td className="py-3 px-3">
-                          <span
-                            className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                              esBajo
-                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                                : 'bg-neutral-800 text-neutral-200'
-                            }`}
-                          >
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${esBajo ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-neutral-800 text-neutral-200'}`}>
                             {p.stock} u.
                           </span>
                         </td>
@@ -723,7 +686,7 @@ export default function InventoryView({
                             }}
                             className="px-2.5 py-1 bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 rounded-lg text-[10px] font-bold border border-violet-500/20 transition-all"
                           >
-                            ✏️ Editar
+                            ✏ Editar
                           </button>
                           <button
                             type="button"
