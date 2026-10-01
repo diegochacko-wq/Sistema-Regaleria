@@ -175,7 +175,11 @@ export function ArqueoView({ turnoPadre, onTurnoCerrado, onVolverPos }: ArqueoVi
       return;
     }
 
-    const nombreNegocio = negocioActual?.name || negocioActual?.nombre || negocioActual?.nombre_negocio || 'Comercio';
+    const nombreNegocio = 
+      (negocioActual as any)?.name || 
+      (negocioActual as any)?.nombre || 
+      (negocioActual as any)?.nombre_negocio || 
+      'Comercio';
 
     const htmlPdf = `
       <!DOCTYPE html>
@@ -376,7 +380,7 @@ export function ArqueoView({ turnoPadre, onTurnoCerrado, onVolverPos }: ArqueoVi
           .eq(negocioActual?.id ? 'id' : 'user_id', negocioActual?.id || user.id);
 
         if (negocioData && negocioData.length > 0) {
-          const n = negocioData[0];
+          const n: any = negocioData[0];
           nombreNegocioTicket = n.name || n.nombre || n.nombre_negocio || n.title || 'Comercio';
         }
       }
