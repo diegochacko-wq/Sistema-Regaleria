@@ -21,6 +21,9 @@ export default function ModuloDeudas() {
   const [montoSumar, setMontoSumar] = useState('')
   const [motivoSumar, setMotivoSumar] = useState('')
 
+  // Estado para el modal de vista previa del informe en celulares y PC
+  const [informeModal, setInformeModal] = useState(null)
+
   const [mensaje, setMensaje] = useState(null)
   const notificar = (tipo, texto) => setMensaje({ tipo, texto })
 
@@ -89,7 +92,6 @@ export default function ModuloDeudas() {
     const nuevoInicial = (deudaEditar.monto_inicial_deuda || 0) + importe
     const nuevoEstado = nuevoSaldo > (deudaEditar.monto_abonado || 0) ? (deudaEditar.monto_abonado > 0 ? 'Parcial' : 'Pendiente') : 'Saldada'
     
-    // Concatenamos el historial de motivos con fecha y monto
     const nuevoCargoStr = `[${fechaHoy}] ${motivoSumar || 'Nuevo cargo'} (+$${importe})`
     const motivoActualizado = deudaEditar.motivo 
       ? `${deudaEditar.motivo} <br> ${nuevoCargoStr}` 
@@ -189,7 +191,6 @@ export default function ModuloDeudas() {
       return;
     }
 
-    // Limpiamos etiquetas HTML para el ticket térmico de texto plano
     const motivosLimpios = (item.motivo || 'Sin especificar').replace(/<br>/g, '\n- ');
 
     const htmlContent = `
@@ -199,14 +200,7 @@ export default function ModuloDeudas() {
           <meta charset="utf-8">
           <title>Ticket - ${item.nombre_cliente}</title>
           <style>
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              width: 52mm;
-              margin: 0 auto;
-              padding: 5px;
-              color: #000;
-              font-size: 11px;
-            }
+            body { font-family: 'Courier New', Courier, monospace; width: 52mm; margin: 0 auto; padding: 5px; color: #000; font-size: 11px; }
             .text-center { text-align: center; }
             .font-bold { font-weight: bold; }
             .border-bottom { border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
@@ -243,80 +237,6 @@ export default function ModuloDeudas() {
       ventanaImpresion.print();
       ventanaImpresion.close();
     }, 300);
-  }
-
-  // 5. Exportar Informe en PDF A4 estándar
-  const exportarInformePDF = (item) => {
-    const ventanaPDF = window.open('', '_blank', 'width=800,height=900');
-    if (!ventanaPDF) {
-      notificar('error', 'Habilita las ventanas emergentes para generar el PDF.');
-      return;
-    }
-
-    const htmlPDF = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Informe de Cuenta - ${item.nombre_cliente}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 40px; color: #333; max-width: 700px; margin: 0 auto; }
-            .header { border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
-            .title { font-size: 20px; font-weight: bold; color: #111; }
-            .subtitle { font-size: 12px; color: #666; }
-            .section { margin-bottom: 20px; }
-            .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px; }
-            .label { font-weight: bold; color: #555; }
-            .historial-box { background: #fdfdfd; border: 1px solid #ddd; padding: 12px; border-radius: 6px; margin-top: 10px; font-size: 13px; line-height: 1.5; }
-            .total-box { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 20px; font-size: 16px; display: flex; justify-content: space-between; font-weight: bold; }
-            .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 15px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div>
-              <div class="title">EL RINCON DE RENZI</div>
-              <div class="subtitle">Informe Detallado de Cuenta Corriente</div>
-            </div>
-            <div class="subtitle">Fecha de emisión: ${new Date().toLocaleDateString()}</div>
-          </div>
-
-          <div class="section">
-            <div class="row"><span class="label">Cliente:</span> <span>${item.nombre_cliente}</span></div>
-            <div class="row"><span class="label">Fecha de Registro:</span> <span>${item.fecha_inicio_deuda || '-'}</span></div>
-            <div class="row"><span class="label">Estado Actual:</span> <span>${item.estado}</span></div>
-          </div>
-
-          <div class="section">
-            <div class="label" style="margin-bottom: 5px;">Historial de Movimientos (Motivos y Fechas):</div>
-            <div class="historial-box">
-              ${item.motivo || 'Sin registros detallados'}
-            </div>
-          </div>
-
-          <div class="section" style="margin-top: 20px;">
-            <div class="row"><span class="label">Deuda Inicial:</span> <span>$${item.monto_inicial_deuda}</span></div>
-            <div class="row"><span class="label">Total Abonado:</span> <span>$${item.monto_abonado || 0}</span></div>
-          </div>
-
-          <div class="total-box">
-            <span>SALDO PENDIENTE ACTUAL:</span>
-            <span style="color: #b45309;">$${item.saldo_actual}</span>
-          </div>
-
-          <div class="footer">
-            Documento generado automáticamente por El Rincon de Renzi - Sistema de Gestión
-          </div>
-        </body>
-      </html>
-    `;
-
-    ventanaPDF.document.write(htmlPDF);
-    ventanaPDF.document.close();
-    ventanaPDF.focus();
-    setTimeout(() => {
-      ventanaPDF.print();
-    }, 400);
   }
 
   return (
@@ -374,7 +294,7 @@ export default function ModuloDeudas() {
                       <td className="px-4 py-3 font-semibold text-white">{item.nombre_cliente}</td>
                       <td className="px-4 py-3 text-xs text-slate-300 max-w-[220px]">
                         <span className="block text-slate-400">{item.fecha_inicio_deuda || '-'}</span>
-                        <span className="font-medium text-white line-clamp-2">{item.motivo || 'Sin motivo'}</span>
+                        <span className="font-medium text-white line-clamp-2" dangerouslySetInnerHTML={{ __html: item.motivo || 'Sin motivo' }}></span>
                       </td>
                       <td className="px-4 py-3 text-right text-slate-300">${item.monto_inicial_deuda}</td>
                       <td className="px-4 py-3 text-right text-sky-300">${item.monto_abonado || 0}</td>
@@ -398,8 +318,8 @@ export default function ModuloDeudas() {
                           🖨️ Térmico
                         </button>
 
-                        {/* Botón PDF */}
-                        <button onClick={() => exportarInformePDF(item)} className="rounded-lg bg-purple-600 px-2 py-1.5 text-xs font-semibold text-white transition hover:bg-purple-500" title="Exportar informe PDF">
+                        {/* Botón Informe en Modal (Compatible con Celular) */}
+                        <button onClick={() => setInformeModal(item)} className="rounded-lg bg-purple-600 px-2 py-1.5 text-xs font-semibold text-white transition hover:bg-purple-500" title="Ver informe detallado">
                           📄 PDF
                         </button>
 
@@ -418,6 +338,78 @@ export default function ModuloDeudas() {
           </div>
         )}
       </div>
+
+      {/* Modal Vista Previa Informe (Ajustado para Móvil) */}
+      {informeModal && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-3 sm:p-6 backdrop-blur-sm overflow-y-auto" role="dialog">
+          <div className="bg-white text-slate-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl relative my-auto">
+            <div className="flex justify-between items-start border-b pb-4 mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">EL RINCON DE RENZI</h3>
+                <p className="text-xs text-slate-500">Informe Detallado de Cuenta Corriente</p>
+              </div>
+              <button 
+                onClick={() => setInformeModal(null)} 
+                className="bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-full w-8 h-8 font-bold flex items-center justify-center transition"
+                aria-label="Cerrar informe"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-slate-600">Cliente:</span>
+                <span className="font-bold text-slate-900">{informeModal.nombre_cliente}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-slate-600">Fecha de Registro:</span>
+                <span>{informeModal.fecha_inicio_deuda || '-'}</span>
+              </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="font-semibold text-slate-600">Estado Actual:</span>
+                <span className="font-bold">{informeModal.estado}</span>
+              </div>
+
+              <div>
+                <span className="font-semibold text-slate-600 block mb-1">Historial de Movimientos:</span>
+                <div className="bg-slate-100 p-3 rounded-xl text-xs space-y-1 max-h-40 overflow-y-auto border" dangerouslySetInnerHTML={{ __html: informeModal.motivo || 'Sin registros detallados' }}></div>
+              </div>
+
+              <div className="border-t pt-3 space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span>Deuda Inicial:</span>
+                  <span className="font-semibold">${informeModal.monto_inicial_deuda}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total Abonado:</span>
+                  <span className="font-semibold text-sky-600">${informeModal.monto_abonado || 0}</span>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl flex justify-between items-center font-bold text-amber-900 text-base mt-2">
+                <span>SALDO PENDIENTE:</span>
+                <span>${informeModal.saldo_actual}</span>
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button 
+                onClick={() => setInformeModal(null)} 
+                className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 py-3 rounded-xl font-semibold text-sm transition"
+              >
+                Cerrar
+              </button>
+              <button 
+                onClick={() => { window.print(); }} 
+                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-xl font-bold text-sm shadow-lg transition"
+              >
+                🖨️ Imprimir / Guardar PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Registrar Pago */}
       {deudaSeleccionada && (
