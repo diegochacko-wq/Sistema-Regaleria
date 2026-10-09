@@ -50,6 +50,8 @@ export default function ModuloDeudas() {
     }
 
     const monto = parseFloat(montoInicial)
+    const motivoTexto = `[${fechaDeuda}] ${motivoInicial || 'Deuda inicial'} (+$${monto})`
+
     const { error } = await supabase
       .from('clientes_deuda')
       .insert([{
@@ -58,7 +60,7 @@ export default function ModuloDeudas() {
         monto_abonado: 0,
         saldo_actual: monto,
         estado: 'Pendiente',
-        motivo: motivoInicial || 'Deuda inicial',
+        motivo: motivoTexto,
         fecha_inicio_deuda: fechaDeuda
       }])
 
@@ -82,16 +84,24 @@ export default function ModuloDeudas() {
       return
     }
 
+    const fechaHoy = new Date().toISOString().split('T')[0]
     const nuevoSaldo = (deudaEditar.saldo_actual || 0) + importe
     const nuevoInicial = (deudaEditar.monto_inicial_deuda || 0) + importe
+    const nuevoEstado = nuevoSaldo > (deudaEditar.monto_abonado || 0) ? (deudaEditar.monto_abonado > 0 ? 'Parcial' : 'Pendiente') : 'Saldada'
+    
+    // Concatenamos el historial de motivos con fecha y monto
+    const nuevoCargoStr = `[${fechaHoy}] ${motivoSumar || 'Nuevo cargo'} (+$${importe})`
+    const motivoActualizado = deudaEditar.motivo 
+      ? `${deudaEditar.motivo} <br> ${nuevoCargoStr}` 
+      : nuevoCargoStr;
 
     const { error } = await supabase
       .from('clientes_deuda')
       .update({
         monto_inicial_deuda: nuevoInicial,
         saldo_actual: nuevoSaldo,
-        estado: nuevoSaldo > (deudaEditar.monto_abonado || 0) ? (deudaEditar.monto_abonado > 0 ? 'Parcial' : 'Pendiente') : 'Saldada',
-        motivo: deudaEditar.motivo ? `${deudaEditar.motivo} | +$${importe} (${motivoSumar || 'Nuevo concepto'})` : (motivoSumar || 'Actualización de deuda')
+        estado: nuevoEstado,
+        motivo: motivoActualizado
       })
       .eq('id', deudaEditar.id)
 
@@ -132,12 +142,19 @@ export default function ModuloDeudas() {
     const nuevoSaldo = deudaSeleccionada.saldo_actual - importe
     const nuevoEstado = nuevoSaldo <= 0 ? 'Saldada' : 'Parcial'
 
+    const fechaHoy = new Date().toISOString().split('T')[0]
+    const pagoStr = `[${fechaHoy}] Pago recibido (${metodoPago}): -$${importe}`
+    const motivoActualizado = deudaSeleccionada.motivo 
+      ? `${deudaSeleccionada.motivo} <br> ${pagoStr}` 
+      : pagoStr;
+
     const { error: errorUpdate } = await supabase
       .from('clientes_deuda')
       .update({
         saldo_actual: nuevoSaldo > 0 ? nuevoSaldo : 0,
         monto_abonado: nuevoAbonado,
-        estado: nuevoEstado
+        estado: nuevoEstado,
+        motivo: motivoActualizado
       })
       .eq('id', deudaSeleccionada.id)
 
@@ -172,6 +189,9 @@ export default function ModuloDeudas() {
       return;
     }
 
+    // Limpiamos etiquetas HTML para el ticket térmico de texto plano
+    const motivosLimpios = (item.motivo || 'Sin especificar').replace(/<br>/g, '\n- ');
+
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -192,6 +212,7 @@ export default function ModuloDeudas() {
             .border-bottom { border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
             .flex-between { display: flex; justify-content: space-between; margin-bottom: 3px; }
             .mt-2 { margin-top: 8px; }
+            .historial { white-space: pre-line; font-size: 10px; margin-top: 4px; }
           </style>
         </head>
         <body>
@@ -200,7 +221,8 @@ export default function ModuloDeudas() {
           <div class="border-bottom mt-2"></div>
           <div><span class="font-bold">Cliente:</span> ${item.nombre_cliente}</div>
           <div><span class="font-bold">Fecha Ini:</span> ${item.fecha_inicio_deuda || '-'}</div>
-          <div><span class="font-bold">Motivo:</span> ${item.motivo || 'Sin especificar'}</div>
+          <div class="mt-2"><span class="font-bold">Detalle / Historial:</span></div>
+          <div class="historial">- ${motivosLimpios}</div>
           <div class="border-bottom mt-2"></div>
           <div class="flex-between"><span>Deuda Inicial:</span> <span>$${item.monto_inicial_deuda}</span></div>
           <div class="flex-between"><span>Total Abonado:</span> <span>$${item.monto_abonado || 0}</span></div>
@@ -245,6 +267,7 @@ export default function ModuloDeudas() {
             .section { margin-bottom: 20px; }
             .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px; }
             .label { font-weight: bold; color: #555; }
+            .historial-box { background: #fdfdfd; border: 1px solid #ddd; padding: 12px; border-radius: 6px; margin-top: 10px; font-size: 13px; line-height: 1.5; }
             .total-box { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 20px; font-size: 16px; display: flex; justify-content: space-between; font-weight: bold; }
             .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #888; border-top: 1px solid #ddd; padding-top: 15px; }
           </style>
@@ -261,11 +284,17 @@ export default function ModuloDeudas() {
           <div class="section">
             <div class="row"><span class="label">Cliente:</span> <span>${item.nombre_cliente}</span></div>
             <div class="row"><span class="label">Fecha de Registro:</span> <span>${item.fecha_inicio_deuda || '-'}</span></div>
-            <div class="row"><span class="label">Motivo / Concepto:</span> <span>${item.motivo || 'Sin especificar'}</span></div>
             <div class="row"><span class="label">Estado Actual:</span> <span>${item.estado}</span></div>
           </div>
 
-          <div class="section" style="margin-top: 30px;">
+          <div class="section">
+            <div class="label" style="margin-bottom: 5px;">Historial de Movimientos (Motivos y Fechas):</div>
+            <div class="historial-box">
+              ${item.motivo || 'Sin registros detallados'}
+            </div>
+          </div>
+
+          <div class="section" style="margin-top: 20px;">
             <div class="row"><span class="label">Deuda Inicial:</span> <span>$${item.monto_inicial_deuda}</span></div>
             <div class="row"><span class="label">Total Abonado:</span> <span>$${item.monto_abonado || 0}</span></div>
           </div>
@@ -343,9 +372,9 @@ export default function ModuloDeudas() {
                   return (
                     <tr key={item.id} className="transition hover:bg-white/[0.035]">
                       <td className="px-4 py-3 font-semibold text-white">{item.nombre_cliente}</td>
-                      <td className="px-4 py-3 text-xs text-slate-300">
+                      <td className="px-4 py-3 text-xs text-slate-300 max-w-[220px]">
                         <span className="block text-slate-400">{item.fecha_inicio_deuda || '-'}</span>
-                        <span className="font-medium text-white">{item.motivo || 'Sin motivo'}</span>
+                        <span className="font-medium text-white line-clamp-2">{item.motivo || 'Sin motivo'}</span>
                       </td>
                       <td className="px-4 py-3 text-right text-slate-300">${item.monto_inicial_deuda}</td>
                       <td className="px-4 py-3 text-right text-sky-300">${item.monto_abonado || 0}</td>
