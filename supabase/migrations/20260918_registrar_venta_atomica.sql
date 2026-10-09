@@ -19,7 +19,7 @@ begin
 
   for producto in
     select id, cantidad
-    from jsonb_to_recordset(p_productos) as item(id bigint, cantidad integer)
+    from jsonb_to_recordset(p_productos) as item(id uuid, cantidad integer)
   loop
     if producto.cantidad is null or producto.cantidad <= 0 then
       raise exception 'Cantidad de producto inválida';
